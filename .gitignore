@@ -15,7 +15,7 @@ __pycache__/
 .venv/
 
 # Local-only Korean docs (not published)
-README.ko.md
+*.ko.md
 
 # OS
 .DS_Store
