@@ -1,0 +1,19 @@
+# Vivado / xsim artifacts
+*.jou
+*.log
+*.pb
+*.wdb
+xsim.dir/
+.Xil/
+xvlog.*
+xelab.*
+webtalk*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
