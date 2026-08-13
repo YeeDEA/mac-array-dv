@@ -220,10 +220,10 @@ package mac_pkg;
     covergroup cg_tile;
       option.per_instance = 1;
       cp_k: coverpoint cov_k {
-        bins k1    = {1};
-        bins small = {[2:4]};
-        bins mid   = {[5:8]};
-        bins big   = {[9:16]};
+        bins k1     = {1};
+        bins k_low  = {[2:4]};
+        bins k_mid  = {[5:8]};
+        bins k_high = {[9:16]};
       }
     endgroup
 `endif
@@ -357,6 +357,7 @@ package mac_pkg;
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
     function void build_phase(uvm_phase phase);
       env = mac_env::type_id::create("env", this);
+      uvm_root::get().set_timeout(10ms, 0); // watchdog: a protocol-dead DUT hangs the drain loop
     endfunction
     virtual function uvm_sequence #(mac_txn) make_seq();
       mac_smoke_seq s = mac_smoke_seq::type_id::create("seq");
