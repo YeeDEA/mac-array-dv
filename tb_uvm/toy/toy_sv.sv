@@ -24,7 +24,7 @@ module toy_tb;
   always_comb sum = captured + 8'd1;
 
   initial begin
-    ToyItem it = new();
+    automatic ToyItem it = new();
     void'(it.randomize());
     it.show();
     tif.valid = 0;

@@ -30,7 +30,7 @@ mac-array-dv/
 
 ## Status
 
-- [x] W1 — repo bootstrap, verification plan skeleton, SystemVerilog toy compile on xsim
+- [x] W1 — repo bootstrap, verification plan skeleton, SystemVerilog toy **PASS** on xsim; bonus: "Hello UVM" (UVM 1.2, `-L uvm`) runs clean — W7 flow risk pre-cleared
 - [ ] W2 — `mac_pe.sv` (signed INT8, guarded accumulator) + directed self-checking TB
 - [ ] W3 — 4×4 array + load-control FSM, matches Python golden model (**M0**)
 - [ ] Phase 1 — valid/ready interface + SVA (**M1**: assertion-violation waveform)
