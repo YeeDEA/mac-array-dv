@@ -14,6 +14,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# Local-only Korean docs (not published)
+README.ko.md
+
 # OS
 .DS_Store
 Thumbs.db
