@@ -60,7 +60,7 @@ def main():
         rows.append((bug, desc, detected))
 
     path = os.path.join(ROOT, "regress", "results", "bug_hunt.md")
-    with open(path, "w") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         fh.write("# Injected-bug hunt results (W16)\n\n")
         for bug, desc, detected in rows:
             caught = any(d for d in detected.values())

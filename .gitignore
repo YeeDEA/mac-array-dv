@@ -23,3 +23,5 @@ Thumbs.db
 
 *.vcd
 tb_unit/vectors.txt
+xsim.covdb/
+regress/results/*.log

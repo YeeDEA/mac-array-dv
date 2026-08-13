@@ -30,14 +30,36 @@ mac-array-dv/
 
 ## Status
 
-- [x] W1 — repo bootstrap, verification plan skeleton, SystemVerilog toy **PASS** on xsim; bonus: "Hello UVM" (UVM 1.2, `-L uvm`) runs clean — W7 flow risk pre-cleared
-- [ ] W2 — `mac_pe.sv` (signed INT8, guarded accumulator) + directed self-checking TB
-- [ ] W3 — 4×4 array + load-control FSM, matches Python golden model (**M0**)
-- [ ] Phase 1 — valid/ready interface + SVA (**M1**: assertion-violation waveform)
-- [ ] Phase 2 — UVM env: driver/monitor/scoreboard, constrained-random (**M2**: 20-seed regression)
-- [ ] Phase 3 — functional coverage + regression + bug hunt (**M3**)
-- [ ] Phase 4 — docs, results, final verification plan
+- [x] W1 — repo bootstrap, verification plan skeleton, SV toy + "Hello UVM" pass on xsim
+- [x] W2 — `mac_pe.sv` + directed self-checking TB: 36 sign/boundary corners + 1000 randoms, 1073 checks PASS
+- [x] W3 — 4×4 array + control FSM: 50 golden-model tiles PASS (**M0**)
+- [x] Phase 1 — valid/ready protocol + **9 SVA** bound into the DUT; injected-bug assertion violation captured (**M1**, `docs/coverage_report/m1_sva_violation.txt`)
+- [x] Phase 2 — UVM 1.2 env from scratch: agent (sequencer/driver/monitor), reference-model scoreboard, constrained-random with corner-weighted `dist`, smoke/random/corner tests (**M2**)
+- [x] Phase 3 — functional coverage (native covergroups **and** Python bin-counting), 20-seed Python regression, injected-bug hunt (**M3**, `docs/bug_log.md`)
+- [ ] Phase 4 — final packaging
 
 ## Results
 
-*(to be filled with measured numbers — coverage %, seed counts, bugs found)*
+| Metric | Value |
+|---|---|
+| Regression | **22/22 runs PASS** (smoke + corner + 20 random seeds × 20 tiles) |
+| Functional coverage | **100%** — SV covergroups (values, K-bins, sign cross) and 23/23 Python bins |
+| Assertions | 9 SVA (protocol + data integrity), 0 violations on clean RTL |
+| Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
+| Injected-bug hunt | **5/5 caught** — SVA first on 3 (protocol/state), scoreboard first on 2 (value-domain), each within the first tiles ([bug_log.md](docs/bug_log.md)) |
+| Verification plan | 9 features → 3 covergroups → 9 assertions ([verification_plan.md](docs/verification_plan.md)) |
+
+### Three-layer checking
+
+```
+constrained-random sequences ──> driver ──> DUT (4×4 MAC array) <── 9 SVA (bind, sees acc/en/clr)
+                                              │
+                                 monitor (posedge sampling)
+                                   ├──> scoreboard: SV reference model (in-sim)
+                                   ├──> covergroups: values × sign cross, K bins
+                                   └──> txn dump ──> Python golden model cross-check + coverage bins (post-sim)
+```
+
+### xsim 2020.2 quirks discovered (documented in the verification plan)
+
+`default disable iff` and `$past/$stable` unsupported in properties → per-property disable + hand-rolled sample registers; UVM lib needs `xelab -timescale`; `-testplusarg` quoting on Windows.
