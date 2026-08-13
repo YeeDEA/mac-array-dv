@@ -1,0 +1,34 @@
+M1 evidence — SVA catches an injected RTL bug (2026-08-13)
+============================================================
+
+Injected bug : BUG3 (compile with xvlog -d BUG3)
+               mac_array_4x4.sv — PE(2,3) clr is gated off, so its accumulator
+               is never cleared between tiles.
+Bench        : tb_unit/mac_array_tb.sv (golden-model vectors, SVA bound via sva/mac_bind.sv)
+
+--- xsim log excerpt -------------------------------------------------------
+ERROR: Assertion failed.
+Time: 625 ns Started: 615 ns Scope: /mac_array_tb/dut/u_sva
+File: sva/mac_array_sva.sv Line:53   ->  a_tile_clear
+    // A7: tile boundary clears every accumulator
+    a_tile_clear: assert property (@(posedge clk) disable iff (!rst_n)
+      out_valid && out_ready && out_last |=> acc_flat == '0);
+
+Fatal: case 2: C[2][3] got 520208 expected 262144
+Time: 1030 ns   (tb_unit/mac_array_tb.sv Line 42 — data check)
+----------------------------------------------------------------------------
+
+Reading:
+1. The assertion a_tile_clear (A7) fires at t=625 ns — the first tile boundary
+   after the stale accumulator survives. This is ~400 ns BEFORE the data-level
+   checker sees corrupted output (t=1030 ns, tile 2), i.e. the assertion
+   localizes the failure to the exact cycle and the exact mechanism (missing
+   clear), while the end-to-end check only reports a wrong sum two tiles later.
+2. C[2][3] observed = 520208 = 262144 (correct tile-2 value) + 258064 (residue
+   of tile 0/1 accumulation in PE(2,3)) — consistent with the injected cause.
+
+Reproduce:
+  cd tb_unit
+  xvlog -sv -d BUG3 ..\rtl\*.sv ..\sva\mac_array_sva.sv ..\sva\mac_bind.sv mac_array_tb.sv
+  xelab mac_array_tb -s bug3_sim && xsim bug3_sim -runall
+(waveform: add -d DUMP for VCD, or open bug3_sim.wdb in Vivado GUI for screenshot)
