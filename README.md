@@ -42,7 +42,7 @@ mac-array-dv/
 
 | Metric | Value |
 |---|---|
-| Regression | **22/22 runs PASS** (smoke + corner + 20 random seeds × 20 tiles) |
+| Regression | **52/52 runs PASS** (smoke + corner + 50 random seeds × 20 tiles, ~1000 tiles) |
 | Functional coverage | **100%** — SV covergroups (values, K-bins, sign cross) and 23/23 Python bins |
 | Assertions | 9 SVA (protocol + data integrity), 0 violations on clean RTL |
 | Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
