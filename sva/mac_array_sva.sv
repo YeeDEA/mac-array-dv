@@ -23,13 +23,30 @@ module mac_array_sva (
   logic [1:0]   out_row_q;
   logic [511:0] acc_flat_q;
   logic [64:0]  in_bus_q;
+  logic [31:0]  a_col_q, b_row_q;
+  logic         en_q, clr_q;
   wire  [64:0]  in_bus = {a_col, b_row, in_last};
   always_ff @(posedge clk) begin
     c_row_q    <= c_row;
     out_row_q  <= out_row;
     acc_flat_q <= acc_flat;
     in_bus_q   <= in_bus;
+    a_col_q    <= a_col;
+    b_row_q    <= b_row;
+    en_q       <= en;
+    clr_q      <= clr;
   end
+
+  // Expected accumulator state one cycle after an accepted beat, computed from the SPEC
+  // (full-width signed multiply-accumulate) rather than from the RTL expression.
+  logic [511:0] acc_exp;
+  always_comb
+    for (int i = 0; i < 4; i++)
+      for (int j = 0; j < 4; j++)
+        acc_exp[(4*i+j)*32 +: 32] =
+            $signed(acc_flat_q[(4*i+j)*32 +: 32])
+          + $signed({{24{a_col_q[8*i+7]}}, a_col_q[8*i +: 8]})
+          * $signed({{24{b_row_q[8*j+7]}}, b_row_q[8*j +: 8]});
 
   // A1: input side blocked while draining
   a_drain_blocks_in: assert property (@(posedge clk) disable iff (!rst_n)
@@ -58,4 +75,12 @@ module mac_array_sva (
   // A9: reset clears accumulators (not disabled by reset itself)
   a_reset_clear: assert property (@(posedge clk)
     !rst_n |=> acc_flat == '0);
+  // A10: no phantom handshake during reset — the DUT must not advertise ready/valid
+  a_reset_quiet: assert property (@(posedge clk)
+    !rst_n |-> !in_ready && !out_valid);
+  // A11: datapath. Every other assertion checks protocol or state; this one checks the
+  // accumulated VALUE, so a wrap or sign-extension bug fails an assertion, not just the
+  // scoreboard. (clr wins over en in the PE, so the clear case is excluded — that is A7.)
+  a_acc_update: assert property (@(posedge clk) disable iff (!rst_n)
+    en_q && !clr_q |-> acc_flat == acc_exp);
 endmodule

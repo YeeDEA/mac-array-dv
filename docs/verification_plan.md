@@ -26,7 +26,9 @@
 
 ## 3. Checking strategy (as built — three independent layers)
 
-1. **SVA** (9 assertions, bound into the DUT, see internal `en/clr/acc`): protocol + integrity.
+1. **SVA** (11 assertions, bound into the DUT, see internal `en/clr/acc`): protocol, state,
+   reset, and — since the audit (E3) — one datapath check, A11 `a_acc_update`, which recomputes
+   the expected accumulator from registered operands using the spec's arithmetic.
 2. **UVM scoreboard**: SV reference model recomputes C from *monitored* input beats (64-bit
    exact, truncated to 32 to mirror wrap-exact hardware).
 3. **Python golden model** (`regress/golden_model.py`): post-sim cross-check of the monitor's
@@ -34,10 +36,13 @@
 
 ## 4. Coverage model (as built)
 
-- SV covergroups (native xsim): `cg_vals` (5×5 value bins + cross), `cg_tile` (K bins) —
-  100% values / 100% tile on the 20-seed regression.
-- Python coverage (fallback A, runs every regression): 23 bins — value bins ×2 operands,
-  3×3 sign cross, 4 K-bins — **100% (23/23)** on the 20-seed sweep.
+- SV covergroups (native xsim): `cg_vals` (5×5 value bins + cross), `cg_tile` (K bins:
+  1, 2–4, 5–8, 9–16, 17–63, 64, plus a `default` bin so out-of-model K cannot hide).
+- Python coverage (fallback A, runs every regression): 25 bins — value bins ×2 operands,
+  3×3 sign cross, 6 K-bins — aggregated across the whole sweep.
+- K reaches 64 both by constrained-random `dist` weighting and by two directed worst-case
+  tiles in `mac_corner_seq` (−128×127 and −128×−128 for 64 beats), so the accumulator-width
+  argument in spec.md is exercised rather than asserted (audit finding: it previously was not).
 
 ## 5. Exit criteria — status
 
@@ -48,7 +53,23 @@
 - [x] Functional coverage ≥ 90% target → measured 100% (both SV covergroups and Python bins)
 - [x] M3: injected-bug hunt ≥ 4/5 caught → **5/5 caught** (docs/bug_log.md)
 
-## 6. Simulator limitations found (xsim 2020.2)
+## 6. Audit of this environment — what it was NOT checking
+
+An adversarial audit of the environment itself (not the DUT) found real defects in the checking.
+They are listed here rather than quietly fixed, because "the testbench passed" is not the claim —
+"the testbench can fail for the right reasons" is.
+
+| # | Defect | Status |
+|---|--------|--------|
+| E1 | **A8 (`a_in_stable`) was 100% vacuous.** Both drivers asserted `in_valid` only at a negedge where `in_ready` was already high, so `in_valid && !in_ready` never occurred in any of the 52 runs. The input-side stall was structurally unreachable. | **fixed** — driver split into independent input/drain threads with valid-first handshake, so the next tile's first beat now stalls against the previous tile's drain. The monitor counts stall cycles and **errors the test if the count is zero**, so the vacuity cannot silently return. |
+| E2 | **`in_ready`/`out_valid` were not reset-qualified.** They were pure combinational decodes of `state`, so during reset the DUT advertised `in_ready = 1` and a producer released one cycle early would see a phantom accept. | **fixed** — `rst_n &&` added in `ctrl.sv`, plus assertion A10 `a_reset_quiet`. |
+| E3 | **No datapath assertion.** Every assertion checked protocol/state; none checked the accumulated *value*. That is why BUG1 (16-bit wrap) and BUG4 (sign) were caught only by the scoreboard — SVA was structurally blind, not merely unlucky. | **fixed** — assertion A11 `a_acc_update` recomputes the expected accumulator from registered operands. |
+| E4 | **Scoreboard is X-blind.** `int'(c_row[...])` converts X to 0, so an undelivered drain row matches an expected value of 0. | **fixed** — explicit `$isunknown` check per lane. |
+| E5 | **Reset is asserted once at time 0 and never again.** Mid-tile and mid-drain reset are unverified; A9/A10 only ever evaluate from the power-on state. F6 is therefore weaker than the table above implies. | **open** — needs a reset sequence plus monitor/driver reset recovery. Next task. |
+| E6 | **A1, A5, A6 are weak.** A6 restates the RTL expression that defines `en` (a tautology); A1 restates a one-bit FSM encoding; A5 cannot fail as written. They pass, but they prove less than their names suggest. | **open** — rewrite against intent, not implementation. |
+| E7 | **`ACC_W` is an inert parameter** — the `c_row` mux, the product width and the SVA bind hardcode 32/16. Overriding it would produce wrong results silently. | **open** — either propagate it or delete the parameter. |
+
+## 7. Simulator limitations found (xsim 2020.2)
 
 | Limitation | Workaround |
 |---|---|

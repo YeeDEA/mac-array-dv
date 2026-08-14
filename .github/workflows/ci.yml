@@ -1,0 +1,134 @@
+name: CI
+
+# Vivado/xsim is not available on GitHub runners, so this workflow covers the two
+# checks that need no simulator licence:
+#   * lint         — Verilator static elaboration of rtl/, clean and with every BUGn hook
+#   * golden-model — pytest over the Python reference model the UVM scoreboard trusts
+# The UVM regression (regress/run_regress.py) and the SVA bind stay a local xsim job.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RTL_TOP: mac_array_4x4
+
+jobs:
+  # ---------------------------------------------------------------- RTL lint
+  lint:
+    name: RTL lint (Verilator)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Verilator
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends verilator
+          verilator --version
+
+      - name: Resolve Verilator flags
+        shell: bash
+        run: |
+          ver="$(verilator --version | awk '{print $2}')"
+          major="${ver%%.*}"
+          echo "Verilator ${ver} (major ${major})"
+          # --timing only exists from Verilator 5.x. The RTL is delay-free, so this is
+          # a compatibility guard: on a 4.x runner the flag would be a hard "unknown option".
+          if [ "${major:-0}" -ge 5 ]; then
+            echo "TIMING_FLAG=--timing" >> "$GITHUB_ENV"
+          else
+            echo "TIMING_FLAG=" >> "$GITHUB_ENV"
+          fi
+          echo "RTL under lint:"
+          ls -1 rtl/*.sv
+
+      - name: Lint clean RTL
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p lint-logs
+          # -Wall for the full stylistic set, -Wno-fatal so style warnings (UNUSEDSIGNAL on
+          # the unconnected mac_if bundle, etc.) do not fail the build. Real elaboration
+          # errors still return non-zero, and the %Error grep below is the belt-and-braces.
+          verilator --lint-only -Wall -Wno-fatal $TIMING_FLAG \
+            --top-module "$RTL_TOP" \
+            rtl/*.sv 2>&1 | tee lint-logs/lint-clean.log
+          if grep -q '%Error' lint-logs/lint-clean.log; then
+            echo "::error title=Verilator::Errors found while linting the clean RTL"
+            exit 1
+          fi
+          warns="$(grep -c '%Warning' lint-logs/lint-clean.log || true)"
+          echo "clean lint OK — ${warns} warning line(s), all non-fatal"
+
+      - name: Lint every injected-bug hook (BUG1..BUG5 must still elaborate)
+        shell: bash
+        run: |
+          # docs/spec.md W16: the five bug hooks are compile-time defines that must stay
+          # elaboratable, otherwise regress/bug_hunt.py cannot build them under xsim.
+          mkdir -p lint-logs
+          failed=""
+          for BUG in BUG1 BUG2 BUG3 BUG4 BUG5; do
+            log="lint-logs/lint-${BUG}.log"
+            echo "::group::verilator -D${BUG}"
+            set +e
+            verilator --lint-only -Wall -Wno-fatal $TIMING_FLAG \
+              --top-module "$RTL_TOP" \
+              -D"${BUG}" \
+              rtl/*.sv > "${log}" 2>&1
+            rc=$?
+            set -e
+            cat "${log}"
+            echo "::endgroup::"
+            if [ "${rc}" -ne 0 ] || grep -q '%Error' "${log}"; then
+              echo "::error title=Bug hook ${BUG}::${BUG} no longer elaborates (rc=${rc}) — see lint-logs/lint-${BUG}.log"
+              failed="${failed} ${BUG}"
+            else
+              echo "${BUG}: elaborates OK"
+            fi
+          done
+          if [ -n "${failed}" ]; then
+            echo "Broken bug hooks:${failed}"
+            exit 1
+          fi
+          echo "all five bug hooks elaborate"
+
+      - name: Upload lint logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verilator-lint-logs
+          path: lint-logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ------------------------------------------------------------ golden model
+  golden-model:
+    name: Golden model tests (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run golden-model unit tests
+        run: python -m pytest regress/test_golden_model.py -v --tb=short

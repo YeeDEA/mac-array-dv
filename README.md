@@ -12,7 +12,7 @@ So the design (DUT) is deliberately small — the point is the verification infr
 
 ```
 mac-array-dv/
-├── rtl/           # mac_pe.sv, mac_array_4x4.sv, ctrl.sv  (~500 lines total)
+├── rtl/           # mac_pe.sv, ctrl.sv, mac_array_4x4.sv, mac_if.sv  (~140 lines total)
 ├── tb_uvm/        # agent, driver, monitor, scoreboard, sequences, env, test
 ├── sva/           # protocol / data-integrity assertions
 ├── regress/       # Python regression scripts + seed management + summaries
@@ -27,6 +27,8 @@ mac-array-dv/
 
 - Vivado 2020.2 `xsim` (UVM 1.2 built in — no extra installs), simulation only
 - Python 3 for the golden model and regression driver
+- CI (GitHub Actions): Verilator lint of `rtl/` clean **and with each injected-bug hook**,
+  plus 65 pytest cases over the golden model — the checks that need no simulator licence
 
 ## Status
 
@@ -43,11 +45,16 @@ mac-array-dv/
 | Metric | Value |
 |---|---|
 | Regression | **52/52 runs PASS** (smoke + corner + 50 random seeds × 20 tiles, ~1000 tiles) |
-| Functional coverage | **100%** — SV covergroups (values, K-bins, sign cross) and 23/23 Python bins |
-| Assertions | 9 SVA (protocol + data integrity), 0 violations on clean RTL |
+| Functional coverage | **25/25 Python bins (100%)** aggregated across the sweep; SV `cg_vals` reaches 100% per run, `cg_tile` closes across the suite (K = 64 comes from the directed corner tiles, not from any single random run) |
+| Assertions | 11 SVA — protocol, state, reset, and one **datapath** check that recomputes the accumulator from the spec; 0 violations on clean RTL |
 | Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
 | Injected-bug hunt | **5/5 caught** — SVA first on 3 (protocol/state), scoreboard first on 2 (value-domain), each within the first tiles ([bug_log.md](docs/bug_log.md)) |
-| Verification plan | 9 features → 3 covergroups → 9 assertions ([verification_plan.md](docs/verification_plan.md)) |
+| Verification plan | 9 features → 2 SV covergroups (+25 Python bins) → 11 assertions ([verification_plan.md](docs/verification_plan.md)) |
+| Known gaps | Documented, not hidden — see [verification_plan.md §7](docs/verification_plan.md). An audit of this environment found assertion A8 passing **vacuously**; the driver was reworked so the stall it checks actually occurs, and the monitor now fails the test if it doesn't. |
+
+### Architecture
+
+![DUT datapath and UVM verification environment](docs/architecture.svg)
 
 ### Three-layer checking
 

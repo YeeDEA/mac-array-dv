@@ -1,0 +1,361 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="716" viewBox="0 0 1000 716" role="img" aria-label="mac_array_4x4 datapath and UVM verification environment">
+  <title>mac_array_4x4 datapath and UVM verification environment</title>
+  <rect x="0" y="0" width="1000" height="716" fill="#ffffff"/>
+
+  <g font-family="'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" fill="#111827">
+
+    <!-- ============================ title ============================ -->
+    <text x="24" y="32" font-size="16" font-weight="700">mac_array_4x4 &#8212; output-stationary MAC array + UVM verification environment</text>
+    <text x="24" y="52" font-size="10" fill="#6b7280">rtl/ &#183; sva/ (bind) &#183; tb_uvm/mac_pkg.sv &#183; regress/   &#8212;   INT8 &#215; INT8 &#8594; INT32 &#183; one tile = K beats (K &#8804; 16) then a 4-row drain</text>
+
+    <!-- ============================ legend ============================ -->
+    <line x1="700" y1="24" x2="718" y2="24" stroke="#111827" stroke-width="1.4"/>
+    <polygon points="718,20.5 726,24 718,27.5" fill="#111827"/>
+    <text x="734" y="27" font-size="8.5">hardware signal  (mac_if &#8596; DUT)</text>
+
+    <line x1="700" y1="40" x2="718" y2="40" stroke="#0b5fa5" stroke-width="1.4"/>
+    <polygon points="718,36.5 726,40 718,43.5" fill="#0b5fa5"/>
+    <text x="734" y="43" font-size="8.5">UVM TLM connection</text>
+
+    <line x1="700" y1="56" x2="726" y2="56" stroke="#0b5fa5" stroke-width="1.4" stroke-dasharray="4 3"/>
+    <text x="734" y="59" font-size="8.5">passive sampling &#183; SVA bind</text>
+
+    <line x1="700" y1="72" x2="726" y2="72" stroke="#6b7280" stroke-width="1.4" stroke-dasharray="3 3"/>
+    <text x="734" y="75" font-size="8.5">post-simulation (Python)</text>
+
+    <!-- ==================================================================== -->
+    <!-- ============== (b) UVM ENVIRONMENT  &#8212; left column =============== -->
+    <!-- ==================================================================== -->
+
+    <!-- sequences -->
+    <rect x="22" y="70" width="286" height="70" rx="4" fill="#f6f7f9" stroke="#111827" stroke-width="1.2"/>
+    <text x="32" y="87" font-size="9.5" font-weight="700">sequences  (uvm_sequence #(mac_txn))</text>
+    <text x="32" y="101" font-size="8.5">mac_smoke_seq &#183; mac_random_seq &#183; mac_corner_seq</text>
+    <text x="32" y="115" font-size="8.5" fill="#6b7280">mac_txn: rand k_len in [1:16], a_flat[64] / b_flat[64] INT8</text>
+    <text x="32" y="129" font-size="8.5" fill="#6b7280">corner-weighted dist: &#8722;128, &#8722;1, 0, 1, 127</text>
+
+    <line x1="165" y1="140" x2="165" y2="150" stroke="#0b5fa5" stroke-width="1.4"/>
+    <polygon points="161.5,150 165,158 168.5,150" fill="#0b5fa5"/>
+    <text x="172" y="153" font-size="8" fill="#0b5fa5">seq.start(env.agt.sqr)</text>
+
+    <!-- mac_env -->
+    <rect x="22" y="160" width="286" height="420" rx="5" fill="#fafbfc" stroke="#9aa3ae" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="32" y="177" font-size="9.5" font-weight="700">mac_env</text>
+    <text x="80" y="177" font-size="8.5" fill="#6b7280">(uvm_env) &#183; built by mac_base_test</text>
+
+    <!-- mac_agent -->
+    <rect x="30" y="186" width="270" height="250" rx="5" fill="#ffffff" stroke="#9aa3ae" stroke-width="1.1" stroke-dasharray="4 4"/>
+    <text x="38" y="200" font-size="9" font-weight="700">mac_agent</text>
+    <text x="90" y="200" font-size="8" fill="#6b7280">(uvm_agent, active)</text>
+
+    <!-- sequencer -->
+    <rect x="40" y="208" width="252" height="30" rx="3" fill="#f6f7f9" stroke="#111827" stroke-width="1.1"/>
+    <text x="50" y="227" font-size="9" font-weight="700">uvm_sequencer #(mac_txn)</text>
+    <text x="188" y="227" font-size="8.5" fill="#6b7280">&#183; sqr</text>
+
+    <line x1="166" y1="238" x2="166" y2="250" stroke="#0b5fa5" stroke-width="1.4"/>
+    <polygon points="162.5,250 166,258 169.5,250" fill="#0b5fa5"/>
+    <text x="174" y="252" font-size="7.5" fill="#6b7280">seq_item_port &#8594; seq_item_export</text>
+
+    <!-- driver -->
+    <rect x="40" y="258" width="252" height="70" rx="3" fill="#f6f7f9" stroke="#111827" stroke-width="1.1"/>
+    <text x="50" y="276" font-size="9" font-weight="700">mac_driver</text>
+    <text x="105" y="276" font-size="8" fill="#6b7280">&#183; drv</text>
+    <text x="50" y="290" font-size="8">vif : virtual mac_if  (uvm_config_db)</text>
+    <text x="50" y="302" font-size="8">K beats: a_col &#8592; a_flat, b_row &#8592; b_flat, in_last @ k=K&#8722;1</text>
+    <text x="50" y="314" font-size="8">random idle gaps &#183; random out_ready backpressure</text>
+
+    <!-- driver -> interface -->
+    <line x1="292" y1="296" x2="304" y2="296" stroke="#111827" stroke-width="1.4"/>
+    <polygon points="304,292.5 312,296 304,299.5" fill="#111827"/>
+
+    <!-- monitor -->
+    <rect x="40" y="348" width="252" height="80" rx="3" fill="#f6f7f9" stroke="#111827" stroke-width="1.1"/>
+    <text x="50" y="366" font-size="9" font-weight="700">mac_monitor</text>
+    <text x="112" y="366" font-size="8" fill="#6b7280">&#183; mon (passive)</text>
+    <text x="50" y="380" font-size="8">in_valid &amp; in_ready &#8594; a_beats / b_beats</text>
+    <text x="50" y="392" font-size="8">out_valid &amp; out_ready &#8594; c_rows[out_row]</text>
+    <text x="50" y="404" font-size="8">out_last &#8594; dump_tile() &#8594; txn_dump.log</text>
+    <text x="50" y="416" font-size="8">ap.write(mac_obs) &#183; uvm_analysis_port</text>
+
+    <!-- interface -> monitor (sampling) -->
+    <line x1="312" y1="388" x2="300" y2="388" stroke="#0b5fa5" stroke-width="1.4" stroke-dasharray="4 3"/>
+    <polygon points="300,384.5 292,388 300,391.5" fill="#0b5fa5"/>
+
+    <!-- analysis port fan-out -->
+    <line x1="166" y1="428" x2="166" y2="442" stroke="#0b5fa5" stroke-width="1.4"/>
+    <line x1="103" y1="442" x2="229" y2="442" stroke="#0b5fa5" stroke-width="1.4"/>
+    <circle cx="166" cy="442" r="2.5" fill="#0b5fa5"/>
+    <text x="176" y="438" font-size="8" font-weight="700" fill="#0b5fa5">ap</text>
+    <line x1="103" y1="442" x2="103" y2="450" stroke="#0b5fa5" stroke-width="1.4"/>
+    <polygon points="99.5,450 103,458 106.5,450" fill="#0b5fa5"/>
+    <line x1="229" y1="442" x2="229" y2="450" stroke="#0b5fa5" stroke-width="1.4"/>
+    <polygon points="225.5,450 229,458 232.5,450" fill="#0b5fa5"/>
+
+    <!-- scoreboard -->
+    <rect x="40" y="458" width="126" height="110" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="48" y="474" font-size="8.5" font-weight="700">mac_scoreboard</text>
+    <text x="48" y="486" font-size="8" fill="#6b7280">sb &#183; uvm_analysis_imp</text>
+    <text x="48" y="500" font-size="8">reference model (SV):</text>
+    <text x="48" y="512" font-size="8">longint acc[4][4]</text>
+    <text x="48" y="524" font-size="8">acc += sa &#215; sb</text>
+    <text x="48" y="536" font-size="8">int&#39;(acc) vs c_rows</text>
+    <text x="48" y="550" font-size="8" font-weight="700" fill="#0b5fa5">SCOREBOARD PASS/FAIL</text>
+    <text x="48" y="562" font-size="8" fill="#6b7280">per tile &#183; uvm_error</text>
+
+    <!-- coverage -->
+    <rect x="174" y="458" width="126" height="110" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="182" y="474" font-size="8.5" font-weight="700">mac_coverage</text>
+    <text x="182" y="486" font-size="8" fill="#6b7280">cov &#183; uvm_subscriber</text>
+    <text x="182" y="500" font-size="8">cg_vals:</text>
+    <text x="182" y="512" font-size="8">cp_a &#215; cp_b  (cross)</text>
+    <text x="182" y="524" font-size="8">bins vmin/vneg/vzero/</text>
+    <text x="182" y="536" font-size="8">vpos/vmax</text>
+    <text x="182" y="550" font-size="8">cg_tile: cp_k</text>
+    <text x="182" y="562" font-size="8">1 / 2-4 / 5-8 / 9-16</text>
+
+    <!-- monitor -> txn_dump.log -->
+    <polyline points="40,400 31,400 31,600 52,600" fill="none" stroke="#6b7280" stroke-width="1.3" stroke-dasharray="3 3"/>
+    <polygon points="52,596.5 60,600 52,603.5" fill="#6b7280"/>
+    <rect x="60" y="588" width="118" height="26" rx="3" fill="#ffffff" stroke="#6b7280" stroke-width="1.1" stroke-dasharray="3 3"/>
+    <text x="119" y="604" font-size="8.5" text-anchor="middle">txn_dump.log</text>
+    <line x1="119" y1="614" x2="119" y2="622" stroke="#6b7280" stroke-width="1.3" stroke-dasharray="3 3"/>
+    <polygon points="115.5,622 119,630 122.5,622" fill="#6b7280"/>
+
+    <!-- ==================================================================== -->
+    <!-- ====================== mac_if (virtual interface) ================== -->
+    <!-- ==================================================================== -->
+    <rect x="312" y="96" width="38" height="488" rx="4" fill="#eef1f5" stroke="#111827" stroke-width="1.4"/>
+    <text x="328" y="330" font-size="12" font-weight="700" text-anchor="middle" transform="rotate(-90 328 330)">mac_if</text>
+    <text x="344" y="330" font-size="8" fill="#6b7280" text-anchor="middle" transform="rotate(-90 344 330)">clk &#183; rst_n &#183; handshake &#183; a_col &#183; b_row &#183; c_row</text>
+
+    <!-- ==================================================================== -->
+    <!-- ================= (a) DUT: mac_array_4x4 datapath ================== -->
+    <!-- ==================================================================== -->
+    <rect x="366" y="84" width="538" height="500" rx="6" fill="#ffffff" stroke="#111827" stroke-width="1.6"/>
+    <text x="378" y="104" font-size="11" font-weight="700">mac_array_4x4</text>
+    <text x="466" y="104" font-size="8.5" fill="#6b7280">(DUT) &#183; output-stationary &#183; ACC_W = 32</text>
+    <text x="378" y="118" font-size="8" fill="#6b7280">b_row[31:0] &#183; lane j = B[k][j], INT8 &#183; beat k</text>
+
+    <!-- b_row bus (top) : drawn before the PEs so the PE fill hides it -->
+    <line x1="350" y1="132" x2="760" y2="132" stroke="#111827" stroke-width="1.4"/>
+    <line x1="460" y1="132" x2="460" y2="418" stroke="#111827" stroke-width="1.2"/>
+    <line x1="560" y1="132" x2="560" y2="418" stroke="#111827" stroke-width="1.2"/>
+    <line x1="660" y1="132" x2="660" y2="418" stroke="#111827" stroke-width="1.2"/>
+    <line x1="760" y1="132" x2="760" y2="418" stroke="#111827" stroke-width="1.2"/>
+    <text x="460" y="128" font-size="7.5" text-anchor="middle">[7:0]</text>
+    <text x="560" y="128" font-size="7.5" text-anchor="middle">[15:8]</text>
+    <text x="660" y="128" font-size="7.5" text-anchor="middle">[23:16]</text>
+    <text x="760" y="128" font-size="7.5" text-anchor="middle">[31:24]</text>
+
+    <!-- a_col lanes (left) -->
+    <text x="378" y="146" font-size="7.5" fill="#6b7280">lane i = A[i][k]</text>
+    <line x1="350" y1="182" x2="800" y2="182" stroke="#111827" stroke-width="1.2"/>
+    <line x1="350" y1="252" x2="800" y2="252" stroke="#111827" stroke-width="1.2"/>
+    <line x1="350" y1="322" x2="800" y2="322" stroke="#111827" stroke-width="1.2"/>
+    <line x1="350" y1="392" x2="800" y2="392" stroke="#111827" stroke-width="1.2"/>
+    <text x="385" y="176" font-size="7.5" text-anchor="middle">a_col[7:0]</text>
+    <text x="385" y="246" font-size="7.5" text-anchor="middle">a_col[15:8]</text>
+    <text x="385" y="316" font-size="7.5" text-anchor="middle">a_col[23:16]</text>
+    <text x="385" y="386" font-size="7.5" text-anchor="middle">a_col[31:24]</text>
+
+    <!-- ================ 4 x 4 PE grid (output-stationary) ================ -->
+    <!-- row 0 -->
+    <rect x="420" y="156" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="460" y="171" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 0,0</text>
+    <rect x="429" y="177" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="460" y="191" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[0][0]</text>
+    <rect x="520" y="156" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="560" y="171" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 0,1</text>
+    <rect x="529" y="177" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="560" y="191" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[0][1]</text>
+    <rect x="620" y="156" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="660" y="171" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 0,2</text>
+    <rect x="629" y="177" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="660" y="191" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[0][2]</text>
+    <rect x="720" y="156" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="760" y="171" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 0,3</text>
+    <rect x="729" y="177" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="760" y="191" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[0][3]</text>
+
+    <!-- row 1 -->
+    <rect x="420" y="226" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="460" y="241" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 1,0</text>
+    <rect x="429" y="247" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="460" y="261" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[1][0]</text>
+    <rect x="520" y="226" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="560" y="241" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 1,1</text>
+    <rect x="529" y="247" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="560" y="261" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[1][1]</text>
+    <rect x="620" y="226" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="660" y="241" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 1,2</text>
+    <rect x="629" y="247" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="660" y="261" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[1][2]</text>
+    <rect x="720" y="226" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="760" y="241" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 1,3</text>
+    <rect x="729" y="247" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="760" y="261" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[1][3]</text>
+
+    <!-- row 2 -->
+    <rect x="420" y="296" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="460" y="311" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 2,0</text>
+    <rect x="429" y="317" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="460" y="331" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[2][0]</text>
+    <rect x="520" y="296" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="560" y="311" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 2,1</text>
+    <rect x="529" y="317" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="560" y="331" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[2][1]</text>
+    <rect x="620" y="296" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="660" y="311" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 2,2</text>
+    <rect x="629" y="317" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="660" y="331" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[2][2]</text>
+    <rect x="720" y="296" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="760" y="311" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 2,3</text>
+    <rect x="729" y="317" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="760" y="331" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[2][3]</text>
+
+    <!-- row 3 -->
+    <rect x="420" y="366" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="460" y="381" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 3,0</text>
+    <rect x="429" y="387" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="460" y="401" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[3][0]</text>
+    <rect x="520" y="366" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="560" y="381" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 3,1</text>
+    <rect x="529" y="387" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="560" y="401" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[3][1]</text>
+    <rect x="620" y="366" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="660" y="381" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 3,2</text>
+    <rect x="629" y="387" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="660" y="401" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[3][2]</text>
+    <rect x="720" y="366" width="80" height="52" rx="3" fill="#ffffff" stroke="#111827" stroke-width="1.1"/>
+    <text x="760" y="381" font-size="8.5" fill="#4b5563" text-anchor="middle">PE 3,3</text>
+    <rect x="729" y="387" width="62" height="21" rx="3" fill="#e9f1fa" stroke="#0b5fa5" stroke-width="1"/>
+    <text x="760" y="401" font-size="8.5" fill="#0b5fa5" text-anchor="middle">acc[3][3]</text>
+
+    <!-- broadcast arrowheads: a_col across each row -->
+    <polygon points="412,178.5 420,182 412,185.5" fill="#111827"/>
+    <polygon points="512,178.5 520,182 512,185.5" fill="#111827"/>
+    <polygon points="612,178.5 620,182 612,185.5" fill="#111827"/>
+    <polygon points="712,178.5 720,182 712,185.5" fill="#111827"/>
+    <polygon points="412,248.5 420,252 412,255.5" fill="#111827"/>
+    <polygon points="512,248.5 520,252 512,255.5" fill="#111827"/>
+    <polygon points="612,248.5 620,252 612,255.5" fill="#111827"/>
+    <polygon points="712,248.5 720,252 712,255.5" fill="#111827"/>
+    <polygon points="412,318.5 420,322 412,325.5" fill="#111827"/>
+    <polygon points="512,318.5 520,322 512,325.5" fill="#111827"/>
+    <polygon points="612,318.5 620,322 612,325.5" fill="#111827"/>
+    <polygon points="712,318.5 720,322 712,325.5" fill="#111827"/>
+    <polygon points="412,388.5 420,392 412,395.5" fill="#111827"/>
+    <polygon points="512,388.5 520,392 512,395.5" fill="#111827"/>
+    <polygon points="612,388.5 620,392 612,395.5" fill="#111827"/>
+    <polygon points="712,388.5 720,392 712,395.5" fill="#111827"/>
+
+    <!-- broadcast arrowheads: b_row down each column -->
+    <polygon points="456.5,148 460,156 463.5,148" fill="#111827"/>
+    <polygon points="556.5,148 560,156 563.5,148" fill="#111827"/>
+    <polygon points="656.5,148 660,156 663.5,148" fill="#111827"/>
+    <polygon points="756.5,148 760,156 763.5,148" fill="#111827"/>
+    <polygon points="456.5,218 460,226 463.5,218" fill="#111827"/>
+    <polygon points="556.5,218 560,226 563.5,218" fill="#111827"/>
+    <polygon points="656.5,218 660,226 663.5,218" fill="#111827"/>
+    <polygon points="756.5,218 760,226 763.5,218" fill="#111827"/>
+    <polygon points="456.5,288 460,296 463.5,288" fill="#111827"/>
+    <polygon points="556.5,288 560,296 563.5,288" fill="#111827"/>
+    <polygon points="656.5,288 660,296 663.5,288" fill="#111827"/>
+    <polygon points="756.5,288 760,296 763.5,288" fill="#111827"/>
+    <polygon points="456.5,358 460,366 463.5,358" fill="#111827"/>
+    <polygon points="556.5,358 560,366 563.5,358" fill="#111827"/>
+    <polygon points="656.5,358 660,366 663.5,358" fill="#111827"/>
+    <polygon points="756.5,358 760,366 763.5,358" fill="#111827"/>
+
+    <!-- ================ drain mux ================ -->
+    <polygon points="826,166 862,196 862,378 826,408" fill="#f6f7f9" stroke="#111827" stroke-width="1.4"/>
+    <text x="844" y="287" font-size="8.5" text-anchor="middle" transform="rotate(-90 844 287)">4:1 row mux &#183; acc[out_row][0..3]</text>
+    <line x1="800" y1="182" x2="818" y2="182" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="818,178.5 826,182 818,185.5" fill="#111827"/>
+    <line x1="800" y1="252" x2="818" y2="252" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="818,248.5 826,252 818,255.5" fill="#111827"/>
+    <line x1="800" y1="322" x2="818" y2="322" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="818,318.5 826,322 818,325.5" fill="#111827"/>
+    <line x1="800" y1="392" x2="818" y2="392" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="818,388.5 826,392 818,395.5" fill="#111827"/>
+
+    <!-- c_row drain path back to the interface -->
+    <polyline points="862,287 940,287 940,610 331,610 331,592" fill="none" stroke="#111827" stroke-width="1.4"/>
+    <polygon points="327.5,592 331,584 334.5,592" fill="#111827"/>
+    <text x="884" y="281" font-size="8" text-anchor="middle">c_row</text>
+    <text x="640" y="602" font-size="8.5" fill="#6b7280" text-anchor="middle">c_row[127:0] = C[out_row][0..3] &#8212; 4 &#215; INT32 lanes   &#183;   out_valid &#183; out_last &#183; out_row</text>
+
+    <!-- ================ ctrl ================ -->
+    <rect x="380" y="438" width="280" height="62" rx="4" fill="#f6f7f9" stroke="#111827" stroke-width="1.2"/>
+    <text x="390" y="456" font-size="9" font-weight="700">u_ctrl</text>
+    <text x="426" y="456" font-size="8" fill="#6b7280">(ctrl.sv) &#8212; tile FSM</text>
+    <text x="390" y="470" font-size="8">S_ACCEPT: in_ready=1, en = in_valid &amp; in_ready</text>
+    <text x="390" y="482" font-size="8">S_DRAIN: out_valid=1, out_row 0&#8594;3, out_last @ row 3</text>
+    <text x="390" y="494" font-size="8">clr = out_valid &amp; out_ready &amp; out_last  (tile auto-clear)</text>
+
+    <!-- handshake between mac_if and ctrl -->
+    <line x1="350" y1="462" x2="380" y2="462" stroke="#111827" stroke-width="1.4"/>
+    <polygon points="372,458.5 380,462 372,465.5" fill="#111827"/>
+    <polygon points="358,458.5 350,462 358,465.5" fill="#111827"/>
+    <text x="359" y="488" font-size="7" fill="#6b7280" text-anchor="middle" transform="rotate(-90 359 488)">valid / ready</text>
+
+    <!-- en / clr up into the grid -->
+    <line x1="432" y1="438" x2="432" y2="426" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="428.5,426 432,418 435.5,426" fill="#111827"/>
+    <text x="440" y="432" font-size="7.5">en</text>
+    <line x1="478" y1="438" x2="478" y2="426" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="474.5,426 478,418 481.5,426" fill="#111827"/>
+    <text x="486" y="432" font-size="7.5">clr</text>
+    <text x="512" y="432" font-size="7" fill="#6b7280">(broadcast to all 16 PEs)</text>
+
+    <!-- out_row select into the mux -->
+    <polyline points="640,438 640,424 844,424 844,401" fill="none" stroke="#111827" stroke-width="1.2"/>
+    <polygon points="840.5,401 844,393 847.5,401" fill="#111827"/>
+    <text x="742" y="436" font-size="7.5" text-anchor="middle">out_row[1:0]</text>
+
+    <text x="672" y="478" font-size="8" fill="#6b7280">each PE: acc &#8592; acc + a &#183; b</text>
+    <text x="672" y="490" font-size="8" fill="#6b7280">INT8 &#215; INT8 &#8594; INT32 (wraps)</text>
+
+    <!-- ================ bound SVA ================ -->
+    <rect x="374" y="512" width="522" height="62" rx="4" fill="#ffffff" stroke="#0b5fa5" stroke-width="1.3" stroke-dasharray="4 3"/>
+    <text x="384" y="528" font-size="8.5" font-weight="700" fill="#0b5fa5">mac_array_sva</text>
+    <text x="456" y="528" font-size="8">&#8212; bind mac_array_4x4 mac_array_sva u_sva (.*) &#183; sees acc[4][4], en, clr</text>
+    <text x="384" y="543" font-size="8">A1 out_valid &#8594; !in_ready &#183; A2 c_row/out_row held while !out_ready &#183; A3 out_row++ per accepted drain beat</text>
+    <text x="384" y="556" font-size="8">A4 out_last &#8660; out_row==3 &#183; A5 acc stable when !en &amp;&amp; !clr &#183; A6 en &#8660; in_valid &amp;&amp; in_ready</text>
+    <text x="384" y="569" font-size="8">A7 all acc == 0 after last drain beat &#183; A8 input held stable while stalled &#183; A9 reset clears acc</text>
+    <line x1="880" y1="512" x2="880" y2="440" stroke="#0b5fa5" stroke-width="1.3" stroke-dasharray="4 3"/>
+    <polygon points="876.5,440 880,432 883.5,440" fill="#0b5fa5"/>
+    <text x="874" y="448" font-size="7.5" fill="#0b5fa5" text-anchor="end">acc[4][4] &#183; en &#183; clr</text>
+
+    <!-- ==================================================================== -->
+    <!-- =============== post-simulation Python cross-check ================= -->
+    <!-- ==================================================================== -->
+    <rect x="22" y="630" width="918" height="70" rx="5" fill="#fafbfc" stroke="#6b7280" stroke-width="1.2" stroke-dasharray="5 4"/>
+    <text x="32" y="648" font-size="9.5" font-weight="700">post-simulation cross-check</text>
+    <text x="176" y="648" font-size="8.5" fill="#6b7280">&#8212; regress/, no simulator in the loop &#183; python regress\run_regress.py --seeds 20</text>
+
+    <rect x="36" y="658" width="176" height="34" rx="3" fill="#ffffff" stroke="#6b7280" stroke-width="1"/>
+    <text x="44" y="672" font-size="8" font-weight="700">run_regress.py</text>
+    <text x="44" y="684" font-size="8" fill="#6b7280">seed sweep &#183; parses UVM_ERROR &amp; SB PASS</text>
+    <line x1="212" y1="675" x2="224" y2="675" stroke="#6b7280" stroke-width="1.3"/>
+    <polygon points="224,671.5 232,675 224,678.5" fill="#6b7280"/>
+
+    <rect x="232" y="658" width="196" height="34" rx="3" fill="#ffffff" stroke="#6b7280" stroke-width="1"/>
+    <text x="240" y="672" font-size="8" font-weight="700">golden_model.py</text>
+    <text x="240" y="684" font-size="8" fill="#6b7280">matmul() + wrap32() &#8594; expected C[4][4]</text>
+    <line x1="428" y1="675" x2="440" y2="675" stroke="#6b7280" stroke-width="1.3"/>
+    <polygon points="440,671.5 448,675 440,678.5" fill="#6b7280"/>
+
+    <rect x="448" y="658" width="196" height="34" rx="3" fill="#ffffff" stroke="#6b7280" stroke-width="1"/>
+    <text x="456" y="672" font-size="8" font-weight="700">compare + Python coverage</text>
+    <text x="456" y="684" font-size="8" fill="#6b7280">independent of the SV scoreboard</text>
+
+    <line x1="656" y1="658" x2="656" y2="692" stroke="#d1d5db" stroke-width="1"/>
+
+    <rect x="668" y="658" width="258" height="34" rx="3" fill="#ffffff" stroke="#6b7280" stroke-width="1"/>
+    <text x="676" y="672" font-size="8" font-weight="700">bug_hunt.py</text>
+    <text x="676" y="684" font-size="8" fill="#6b7280">+define BUG1..BUG5 &#8594; each must be caught (SB / SVA / golden)</text>
+
+  </g>
+</svg>

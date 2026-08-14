@@ -6,7 +6,9 @@ package mac_pkg;
   import uvm_pkg::*;
   `include "uvm_macros.svh"
 
-  localparam int KMAX = 16;
+  // 64 = the K the accumulator-width argument in docs/spec.md is stated for. The regression
+  // must actually reach it, or the 32-bit accumulator claim is untested.
+  localparam int KMAX = 64;
 
   // ---------------------------------------------------------------- stimulus item
   // One tile: K beats. Beat k, lane i: a = a_flat[4k+i], b = b_flat[4k+j].
@@ -15,7 +17,10 @@ package mac_pkg;
     rand byte a_flat [4*KMAX];
     rand byte b_flat [4*KMAX];
 
-    constraint c_k { k_len inside {[1:KMAX]}; }
+    // Weighted toward short tiles for runtime, but long tiles must appear — the
+    // accumulator margin is only exercised near K = 64.
+    constraint c_k { k_len inside {[1:KMAX]};
+                     k_len dist {[1:8] :/ 50, [9:16] :/ 25, [17:32] :/ 15, [33:64] :/ 10}; }
     // corner-weighted operand distribution
     constraint c_a { foreach (a_flat[x]) a_flat[x] dist
       {-128 := 4, -1 := 2, 0 := 4, 1 := 2, 127 := 4, [-127:-2] :/ 10, [2:126] :/ 10}; }
@@ -37,8 +42,13 @@ package mac_pkg;
   endclass
 
   // ---------------------------------------------------------------- driver
+  // Input and drain run as independent threads. That is what makes the next tile's first
+  // beat show up while the previous tile is still draining — the only way in_valid && !in_ready
+  // ever occurs, and therefore the only way assertion A8 is anything but a vacuous pass.
   class mac_driver extends uvm_driver #(mac_txn);
     virtual mac_if vif;
+    int tiles_driven  = 0;
+    int tiles_drained = 0;
     `uvm_component_utils(mac_driver)
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
@@ -48,7 +58,6 @@ package mac_pkg;
     endfunction
 
     task run_phase(uvm_phase phase);
-      mac_txn t;
       vif.in_valid  <= 0;
       vif.in_last   <= 0;
       vif.out_ready <= 0;
@@ -56,9 +65,18 @@ package mac_pkg;
       vif.b_row     <= '0;
       wait (vif.rst_n === 1'b1);
       @(negedge vif.clk);
+      fork
+        input_thread();
+        drain_thread();
+      join
+    endtask
+
+    task input_thread();
+      mac_txn t;
       forever begin
         seq_item_port.get_next_item(t);
         drive_tile(t);
+        tiles_driven++;
         seq_item_port.item_done();
       end
     endtask
@@ -72,21 +90,39 @@ package mac_pkg;
           vif.in_valid <= 0;
           @(negedge vif.clk);
         end
-        while (!vif.in_ready) @(negedge vif.clk);
+        // valid-first: assert the beat, then hold it stable until the DUT is ready.
+        // in_ready read at a negedge is the value the upcoming posedge samples.
         vif.in_valid <= 1;
         vif.a_col    <= ac;
         vif.b_row    <= br;
         vif.in_last  <= (k == t.k_len - 1);
-        @(negedge vif.clk);
+        while (!vif.in_ready) @(negedge vif.clk);  // stalled here => A8 antecedent fires
+        @(negedge vif.clk);                        // let the accepting posedge pass
         vif.in_valid <= 0;
       end
-      for (int r = 0; r < 4; r++) begin          // drain with random backpressure
-        while (!vif.out_valid) @(negedge vif.clk);
-        repeat ($urandom_range(0, 2)) @(negedge vif.clk);
-        vif.out_ready <= 1;
+    endtask
+
+    task drain_thread();
+      bit last;
+      forever begin
         @(negedge vif.clk);
-        vif.out_ready <= 0;
+        if (vif.rst_n === 1'b1 && vif.out_valid) begin
+          repeat ($urandom_range(0, 2)) @(negedge vif.clk);  // output backpressure
+          last = vif.out_last;
+          vif.out_ready <= 1;
+          @(negedge vif.clk);
+          vif.out_ready <= 0;
+          if (last) tiles_drained++;
+        end
       end
+    endtask
+
+    // Tests call this before dropping the objection: item_done() now fires when a tile's
+    // input beats are in, which is one drain ahead of the tile actually being checked.
+    task wait_all_drained();
+      do @(negedge vif.clk);
+      while (tiles_driven == 0 || tiles_drained < tiles_driven);
+      repeat (2) @(negedge vif.clk);
     endtask
   endclass
 
@@ -95,6 +131,8 @@ package mac_pkg;
     virtual mac_if vif;
     uvm_analysis_port #(mac_obs) ap;
     int fd;
+    int n_in_stall  = 0;   // cycles of in_valid && !in_ready  (A8 antecedent)
+    int n_out_stall = 0;   // cycles of out_valid && !out_ready (A2 antecedent)
     `uvm_component_utils(mac_monitor)
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
@@ -110,6 +148,8 @@ package mac_pkg;
       forever begin
         @(posedge vif.clk);
         if (vif.rst_n === 1'b1) begin
+          if (vif.in_valid  && !vif.in_ready)  n_in_stall++;
+          if (vif.out_valid && !vif.out_ready) n_out_stall++;
           if (vif.in_valid && vif.in_ready) begin
             cur.a_beats.push_back(vif.a_col);
             cur.b_beats.push_back(vif.b_row);
@@ -135,6 +175,16 @@ package mac_pkg;
         for (int j = 0; j < 4; j++) $fwrite(fd, " %0d", int'(o.c_rows[r][32*j +: 32]));
         $fwrite(fd, "\n");
       end
+    endfunction
+
+    function void report_phase(uvm_phase phase);
+      // Proof that the stimulus actually reached the stall scenarios. If n_in_stall is 0,
+      // assertion A8 passed vacuously and the input-backpressure feature is unverified.
+      if (n_in_stall == 0)
+        `uvm_error("STIM", "in_valid && !in_ready never occurred — A8 is a vacuous pass")
+      else
+        `uvm_info("STIM", $sformatf("stall cycles observed: input=%0d output=%0d",
+                  n_in_stall, n_out_stall), UVM_LOW)
     endfunction
 
     function void final_phase(uvm_phase phase);
@@ -172,8 +222,17 @@ package mac_pkg;
       n_tiles++;
       for (int i = 0; i < 4; i++) begin
         for (int j = 0; j < 4; j++) begin
+          automatic logic signed [31:0] raw = o.c_rows[i][32*j +: 32];
+          // int'() would silently turn an undelivered (X) row into 0, which matches an
+          // expected 0 — check for unknowns before the value compare.
+          if ($isunknown(raw)) begin
+            n_bad++;
+            `uvm_error("SB", $sformatf("tile %0d C[%0d][%0d] is X — row never delivered",
+                       n_tiles, i, j))
+            continue;
+          end
           exp32 = int'(acc[i][j]);
-          got32 = int'(o.c_rows[i][32*j +: 32]);
+          got32 = int'(raw);
           if (got32 !== exp32) begin
             n_bad++;
             `uvm_error("SB", $sformatf("tile %0d C[%0d][%0d] got %0d expected %0d (K=%0d)",
@@ -224,6 +283,9 @@ package mac_pkg;
         bins k_low  = {[2:4]};
         bins k_mid  = {[5:8]};
         bins k_high = {[9:16]};
+        bins k_wide = {[17:63]};
+        bins k_max  = {64};
+        bins k_over = default;   // out-of-model K must not hide inside a legal bin
       }
     endgroup
 `endif
@@ -314,16 +376,20 @@ package mac_pkg;
   class mac_smoke_seq extends uvm_sequence #(mac_txn);
     `uvm_object_utils(mac_smoke_seq)
     function new(string name = "mac_smoke_seq"); super.new(name); endfunction
+    // Two tiles, not one: the second tile's first beat is what stalls against the first
+    // tile's drain, which is the only way the input-backpressure path is exercised.
     task body();
-      req = mac_txn::type_id::create("req");
-      start_item(req);
-      if (!req.randomize() with { k_len == 2; }) `uvm_fatal("RAND", "randomize failed")
-      // deterministic small values on top of the random frame
-      for (int x = 0; x < 8; x++) begin
-        req.a_flat[x] = byte'(x + 1);        // 1..8
-        req.b_flat[x] = byte'(-(x + 1));     // -1..-8
+      repeat (2) begin
+        req = mac_txn::type_id::create("req");
+        start_item(req);
+        if (!req.randomize() with { k_len == 2; }) `uvm_fatal("RAND", "randomize failed")
+        // deterministic small values on top of the random frame
+        for (int x = 0; x < 8; x++) begin
+          req.a_flat[x] = byte'(x + 1);        // 1..8
+          req.b_flat[x] = byte'(-(x + 1));     // -1..-8
+        end
+        finish_item(req);
       end
-      finish_item(req);
     endtask
   endclass
 
@@ -344,7 +410,8 @@ package mac_pkg;
       send_const(8,  8'sd0,    8'sd0);     // all-zero
       send_const(16, 8'sd127,  8'sd127);   // all-max
       send_const(16, -8'sd128, -8'sd128);  // all-min -> max positive products
-      send_const(16, -8'sd128, 8'sd127);   // most-negative products, max K
+      send_const(64, -8'sd128, 8'sd127);   // worst case: most-negative product x max K
+      send_const(64, -8'sd128, -8'sd128);  // worst case: most-positive product x max K
       send_const(8,  8'sd42,   8'sd42);    // same-value
       send_const(1,  -8'sd128, -8'sd128);  // K=1 extreme
     endtask
@@ -367,6 +434,7 @@ package mac_pkg;
       uvm_sequence #(mac_txn) seq = make_seq();
       phase.raise_objection(this);
       seq.start(env.agt.sqr);
+      env.agt.drv.wait_all_drained();  // item_done() runs a drain ahead of the check
       phase.drop_objection(this);
     endtask
   endclass

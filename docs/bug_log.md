@@ -4,34 +4,52 @@ Every entry: symptom → root cause → evidence → fix → re-verification.
 
 ## Real bugs found during bring-up
 
-| # | Date | Found by | Symptom | Root cause | Fix | Re-verified |
-|---|------|----------|---------|------------|-----|-------------|
-| R1 | 08-13 | xvlog compile | package failed to parse | covergroup bin named `small` — a reserved Verilog keyword (charge strength) | renamed bins `k_low/k_mid/k_high` | full regression |
-| R2 | 08-13 | xelab | "module has timescale but uvm_pkg doesn't" | Xilinx UVM lib compiled without timescale | `xelab -timescale 1ns/1ps` | full regression |
-| R3 | 08-13 | xelab | `default disable iff` / `$past` / `$stable` rejected | xsim 2020.2 SVA subset | per-property disable + hand-rolled sample registers | 9 assertions active, M1 evidence |
+| # | Found by | Symptom | Root cause | Fix | Re-verified |
+|---|----------|---------|------------|-----|-------------|
+| R1 | xvlog | package failed to parse | covergroup bin named `small` — a reserved Verilog keyword (charge strength) | renamed `k_low/k_mid/k_high` | full regression |
+| R2 | xelab | "module has timescale but at least one module doesn't" | Xilinx UVM library compiled without a timescale | `xelab -timescale 1ns/1ps` | full regression |
+| R3 | xelab | `default disable iff` / `$past` / `$stable` rejected | xsim 2020.2 implements a subset of SVA | per-property `disable iff` + hand-rolled previous-cycle sample registers | 11 assertions active |
+| R4 | regression driver crash | `TypeError: NoneType + str` mid-sweep | xsim emits bytes the Windows ANSI codepage can't decode; the subprocess reader thread died and `stdout` came back `None` | decode as UTF-8 with `errors="replace"` | 20-seed sweep |
+| R5 | audit | `in_ready`/`out_valid` advertised during reset | pure combinational decode of `state`, not reset-qualified — a producer released one cycle early sees a phantom accept | `rst_n &&` in `ctrl.sv` + assertion A10 | full regression |
+
+## Environment defects (the testbench was wrong, not the DUT)
+
+See [verification_plan.md §6](verification_plan.md) for the full audit table. The headline:
+**A8 `a_in_stable` passed vacuously in all 52 runs** — the driver only asserted `in_valid`
+when `in_ready` was already high, so the stall it checks was structurally unreachable.
+Fixed by splitting the driver into independent input/drain threads; the monitor now counts
+stall cycles and **errors the test if the count is zero**, so the vacuity cannot return silently.
 
 ## Injected-bug hunt (W16) — 5/5 caught
 
-Each bug is a compile-time define (`xvlog -d BUGn`), hunted by `regress/bug_hunt.py`
-running `mac_corner_test` + `mac_random_test` against the unmodified environment.
-Detection layers: **SVA** (cycle-accurate, localizes mechanism) → **scoreboard** (SV
-reference model, in-sim) → **Python golden cross-check** (post-sim) → **watchdog** (hangs).
+Each bug is a compile-time define (`xvlog -d BUGn`), hunted by `regress/bug_hunt.py` running
+`mac_corner_test` + `mac_random_test` against the unmodified environment.
 
-| Bug | Injection | First detector | Evidence (from hunt log) |
-|-----|-----------|----------------|--------------------------|
-| BUG1 | `mac_pe.sv` — accumulator wraps at 16 bits (overflow guard removed) | **scoreboard** (SVA structurally blind to value-domain truncation) | corner: tile 2 C[0][0] got −4080 exp 258064; random: 16/20 tiles bad, UVM_ERROR=45 |
-| BUG2 | `ctrl.sv` — `out_last` at row 2 (off-by-one, tile drains 3 rows) | **SVA `a_out_last_iff_row3`** at 155–235 ns, then scoreboard, then watchdog (driver starves waiting for row 3) | Assertion failed, mac_array_sva.sv:44 |
-| BUG3 | `mac_array_4x4.sv` — PE(2,3) `clr` gated off (never clears between tiles) | **SVA `a_tile_clear`** at 215–705 ns (≈400 ns before the data check — see M1 evidence) | Assertion failed, mac_array_sva.sv:53; random: 19/20 tiles bad |
-| BUG4 | `mac_pe.sv` — `b` zero-extended (sign bug, b treated as unsigned) | **scoreboard**, first tile with negative b | corner: C[0][0] got −262144 exp +262144 (sign flip); random: 20/20 tiles bad, UVM_ERROR=303 |
-| BUG5 | `ctrl.sv` — drain advances without `out_ready` (handshake violation) | **SVA `a_out_stable`** at 105–215 ns; scoreboard sees nothing wrong (values correct!) — protocol-only bug, then watchdog | Assertion failed, mac_array_sva.sv:38, UVM_ERROR=0 |
+| Bug | Injection | SVA | Scoreboard | Python | Watchdog |
+|-----|-----------|-----|------------|--------|----------|
+| BUG1 | accumulator wraps at 16 bits | **A11 @265 ns** | tile 1 | 20/20 tiles | — |
+| BUG2 | `out_last` at row 2 (off-by-one) | **A4 @235 ns** | ✓ | 20/20 tiles | ✓ |
+| BUG3 | PE(2,3) `clr` gated off | **A7 @715 ns** | tile 2 | 19/20 tiles | — |
+| BUG4 | `b` zero-extended (sign bug) | **A11 @95 ns** | tile 1 | 20/20 tiles | — |
+| BUG5 | drain ignores `out_ready` | **A2 @195 ns** | ✓ | ✓ | ✓ |
 
-### Lessons (interview material)
+### What changed after the audit — and why it is the most interesting result
 
-1. **Value-domain bugs (BUG1/BUG4) are invisible to protocol SVA** — only a reference
-   model catches them. **Protocol bugs (BUG5) are invisible to the scoreboard** — data
-   was numerically correct while the handshake was broken. Layered checking is not
-   redundancy; each layer has a blind spot the other covers.
-2. SVA localized BUG2/BUG3/BUG5 to the exact cycle and mechanism within ~200 ns;
-   the end-to-end check reported them tiles later (or never, for BUG5).
-3. A watchdog timeout is itself a detector: two bugs hung the protocol, and without
-   `set_timeout` the regression would have stalled instead of failing.
+The **first** hunt (before the audit) looked like this:
+
+| | SVA | Scoreboard |
+|---|---|---|
+| BUG1 (value) | **missed** | caught |
+| BUG4 (value) | **missed** | caught |
+| BUG5 (protocol) | caught | **missed** (UVM_ERROR = 0 — every value was correct) |
+
+That was read as "each layer covers the other's blind spot", which was true but incomplete.
+The real finding was that **SVA's blindness was structural, not accidental**: all nine assertions
+checked protocol and state, and not one checked the accumulated *value*. Adding A11
+`a_acc_update` — which recomputes the expected accumulator from registered operands using the
+spec's arithmetic rather than the RTL's expression — closed it. SVA now catches 5/5, and catches
+the two value bugs **hundreds of nanoseconds before** the scoreboard reaches the end of a tile.
+
+The scoreboard is still not redundant: it is an independent implementation, so it is the check
+that would survive A11 itself being wrong. Layered checking earns its keep by independence,
+not by counting layers.

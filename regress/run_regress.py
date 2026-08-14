@@ -26,9 +26,13 @@ SVA = r"..\sva\mac_array_sva.sv ..\sva\mac_bind.sv"
 
 
 def shell(cmdline):
+    """Run a command under the Vivado environment. xsim emits bytes that the Windows
+    ANSI codepage cannot decode, so decode as UTF-8 with replacement rather than
+    letting the reader thread die and hand back None."""
     full = f'call {VIVADO} && cd /d {TB} && {cmdline}'
-    p = subprocess.run(["cmd", "/c", full], capture_output=True, text=True)
-    return p.returncode, p.stdout + p.stderr
+    p = subprocess.run(["cmd", "/c", full], capture_output=True,
+                       encoding="utf-8", errors="replace")
+    return p.returncode, (p.stdout or "") + (p.stderr or "")
 
 
 def compile_env(defines=""):
@@ -73,7 +77,7 @@ def sign_cat(v):
 
 class Coverage:
     VAL_BINS = ["min", "neg", "zero", "pos", "max"]
-    K_BINS = ["k1", "k2_4", "k5_8", "k9_16"]
+    K_BINS = ["k1", "k2_4", "k5_8", "k9_16", "k17_32", "k33_64"]
 
     def __init__(self):
         self.hits = {f"a_{b}": 0 for b in self.VAL_BINS}
@@ -94,7 +98,8 @@ class Coverage:
         self.hits[f"x_{sign_cat(a)}_{sign_cat(b)}"] += 1
 
     def sample_k(self, k):
-        key = "k1" if k == 1 else "k2_4" if k <= 4 else "k5_8" if k <= 8 else "k9_16"
+        key = ("k1" if k == 1 else "k2_4" if k <= 4 else "k5_8" if k <= 8
+               else "k9_16" if k <= 16 else "k17_32" if k <= 32 else "k33_64")
         self.hits[key] += 1
 
     def pct(self):

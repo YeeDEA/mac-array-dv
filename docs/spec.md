@@ -5,10 +5,12 @@ C(4×4) = A(4×K) × B(K×4), K ≥ 1 (streaming, no upper bound in HW; tests us
 Beat k carries **column k of A** (`a_col`, 4 lanes) and **row k of B** (`b_row`, 4 lanes).
 Each PE(i,j): `acc += a_col[i] * b_row[j]` — pure output-stationary, no weight loading phase.
 
-## Accumulator width = 32 (16 + 16 guard)
-INT8×INT8 product ∈ [−16256, +16384] → 16 bits signed (with sign, 17-bit safe: fits s16 range −32768..32767).
-Accumulating N products needs 16 + ⌈log2 N⌉ bits → 32-bit acc is exact for N ≤ 2^15 beats.
-Tests bound K ≤ 64 → margin ≥ 2^9. No saturation logic; overflow is architecturally impossible in-spec.
+## Accumulator width = 32 (16-bit product + 16 guard bits)
+INT8×INT8 signed product ∈ [−16256, +16384], which fits signed 16 bits (range −32768..32767).
+Summing N such products needs 16 + ⌈log₂N⌉ bits, so a 32-bit accumulator is exact for N ≤ 2¹⁶ beats
+(worst case |Σ| ≤ N·16384 ≤ 2³⁰ at N = 2¹⁶ — inside signed 32-bit).
+Tests bound K ≤ 64, so the margin is 2¹⁰×. No saturation logic: in-spec overflow is impossible,
+and `mac_pe` therefore wraps rather than saturates if the bound is ever exceeded (BUG1 injects exactly that).
 
 ## Ports (mac_array_4x4, packed lanes: lane n = bits [8n+7:8n] / [32n+31:32n], signed)
 | Port | Dir | Width | Meaning |

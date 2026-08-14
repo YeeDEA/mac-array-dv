@@ -24,8 +24,10 @@ module ctrl (
   wire drain_beat = out_valid && out_ready;
 `endif
 
-  assign in_ready  = (state == S_ACCEPT);
-  assign out_valid = (state == S_DRAIN);
+  // Reset-qualified: without rst_n here the FSM advertises in_ready throughout the
+  // reset window, so a producer released one cycle early sees a phantom accept.
+  assign in_ready  = rst_n && (state == S_ACCEPT);
+  assign out_valid = rst_n && (state == S_DRAIN);
   assign out_row   = row;
 `ifdef BUG2
   assign out_last  = (row == 2'd2);        // BUG2: off-by-one, tile ends a row early
