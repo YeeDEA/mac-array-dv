@@ -25,3 +25,4 @@ Thumbs.db
 tb_unit/vectors.txt
 xsim.covdb/
 regress/results/*.log
+*.ko.html
