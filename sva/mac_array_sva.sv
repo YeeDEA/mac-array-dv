@@ -10,7 +10,9 @@ module mac_array_sva (
   input logic [1:0] out_row,
   input logic [127:0] c_row,
   input logic en, clr,
-  input logic signed [31:0] acc [4][4]
+  input logic signed [31:0] acc [4][4],
+  input logic       state,        // ctrl FSM: 0 = S_ACCEPT, 1 = S_DRAIN
+  input logic [1:0] row           // ctrl drain row counter
 );
   logic [511:0] acc_flat;
   always_comb
@@ -72,9 +74,12 @@ module mac_array_sva (
   // A8: environment holds input stable during stall
   a_in_stable: assert property (@(posedge clk) disable iff (!rst_n)
     in_valid && !in_ready |=> in_valid && in_bus == in_bus_q);
-  // A9: reset clears accumulators (not disabled by reset itself)
+  // A9: reset returns the WHOLE datapath + control to the power-on state — accumulators,
+  // FSM state and drain row — from any point (mid-ACCEPT, mid-DRAIN; mac_reset_test).
+  // Not disabled by reset itself. Checking acc alone would miss a reset that leaves the
+  // FSM in DRAIN or the row counter mid-tile.
   a_reset_clear: assert property (@(posedge clk)
-    !rst_n |=> acc_flat == '0);
+    !rst_n |=> acc_flat == '0 && state == 1'b0 && row == 2'd0);
   // A10: no phantom handshake during reset — the DUT must not advertise ready/valid
   a_reset_quiet: assert property (@(posedge clk)
     !rst_n |-> !in_ready && !out_valid);

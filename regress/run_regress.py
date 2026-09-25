@@ -36,7 +36,7 @@ def shell(cmdline):
 
 
 def compile_env(defines=""):
-    rc, out = shell(f"xvlog -sv -L uvm {defines} {RTL} {SVA} mac_pkg.sv tb_top.sv "
+    rc, out = shell(f"xvlog -sv -L uvm {defines} {RTL} {SVA} rst_if.sv mac_pkg.sv tb_top.sv "
                     f"&& xelab tb_top -L uvm -timescale 1ns/1ps -s uvm_sim")
     if rc != 0:
         print(out[-3000:])
@@ -138,6 +138,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--seeds", type=int, default=20)
     ap.add_argument("--ntiles", type=int, default=20)
+    ap.add_argument("--reset-seeds", type=int, default=5)
     ap.add_argument("--no-compile", action="store_true")
     args = ap.parse_args()
 
@@ -157,6 +158,16 @@ def main():
         if not ok:
             fails.append((test, seed))
         print(f"{name:8s} seed={seed:<4d} {'PASS' if ok else 'FAIL'}  sv_cov[{c}] xcheck {t} tiles {b} bad")
+
+    # E5: mid-ACCEPT / mid-DRAIN reset recovery (4 reset pulses per run)
+    for seed in range(1, args.reset_seeds + 1):
+        ok, errs, fatals, sva, c = run_test("mac_reset_test", seed)
+        t, b = cross_check(os.path.join(TB, "txn_dump.log"), cov)
+        ok = ok and b == 0
+        rows.append(("reset", seed, ok, errs, sva, c, t, b))
+        if not ok:
+            fails.append(("mac_reset_test", seed))
+        print(f"reset    seed={seed:<4d} {'PASS' if ok else 'FAIL'}  sv_cov[{c}] xcheck {t} tiles {b} bad")
 
     for seed in range(1, args.seeds + 1):
         ok, errs, fatals, sva, c = run_test("mac_random_test", seed, args.ntiles)

@@ -8,6 +8,6 @@ if "%SEED%"=="" set SEED=1
 set DEFS=%3 %4 %5
 
 xvlog -sv -L uvm %DEFS% ..\rtl\mac_pe.sv ..\rtl\ctrl.sv ..\rtl\mac_array_4x4.sv ..\rtl\mac_if.sv ^
-  ..\sva\mac_array_sva.sv ..\sva\mac_bind.sv mac_pkg.sv tb_top.sv || exit /b 1
+  ..\sva\mac_array_sva.sv ..\sva\mac_bind.sv rst_if.sv mac_pkg.sv tb_top.sv || exit /b 1
 xelab tb_top -L uvm -timescale 1ns/1ps -s uvm_sim || exit /b 1
 xsim uvm_sim -runall -sv_seed %SEED% -testplusarg UVM_TESTNAME=%TEST%

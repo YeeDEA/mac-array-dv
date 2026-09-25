@@ -4,12 +4,15 @@ module tb_top;
   import mac_pkg::*;
 
   logic clk = 0;
-  logic rst_n = 0;
+  logic por_n = 0;          // power-on reset
   always #5 clk = ~clk;
   initial begin
     repeat (4) @(negedge clk);
-    rst_n = 1;
+    por_n = 1;
   end
+
+  rst_if rif (clk);         // mid-run reset pulses requested by mac_reset_test
+  wire rst_n = por_n && !rif.rst_req;
 
   mac_if ifc (clk, rst_n);
 
@@ -29,6 +32,7 @@ module tb_top;
 
   initial begin
     uvm_config_db#(virtual mac_if)::set(null, "*", "vif", ifc);
+    uvm_config_db#(virtual rst_if)::set(null, "*", "rif", rif);
     run_test();
   end
 

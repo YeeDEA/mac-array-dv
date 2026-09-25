@@ -57,26 +57,53 @@ package mac_pkg;
         `uvm_fatal("NOVIF", "mac_driver: no virtual interface")
     endfunction
 
+    int  tiles_aborted = 0;   // tiles cut short by a mid-run reset (never checked)
+    bit  item_busy     = 0;   // an item is checked out from the sequencer
+
+    // Reset recovery: the DUT may be reset at any point (mac_reset_test). Each reset
+    // kills both threads, returns the in-flight item, drops all outputs, and restarts
+    // from the post-reset state. A tile interrupted by reset is not counted as driven,
+    // so wait_all_drained() only waits for tiles that can actually complete.
     task run_phase(uvm_phase phase);
+      forever begin
+        init_outputs();
+        wait (vif.rst_n === 1'b1);
+        @(negedge vif.clk);
+        fork begin
+          fork
+            input_thread();
+            drain_thread();
+            @(negedge vif.rst_n);
+          join_any
+          disable fork;
+        end join
+        if (item_busy || tiles_driven > tiles_drained) tiles_aborted++;
+        if (item_busy) begin
+          seq_item_port.item_done();   // abandon the half-driven tile
+          item_busy = 0;
+        end
+        tiles_driven = tiles_drained;
+        `uvm_info("DRV", $sformatf("reset seen: outputs re-initialised, %0d tile(s) aborted so far",
+                  tiles_aborted), UVM_MEDIUM)
+      end
+    endtask
+
+    function void init_outputs();
       vif.in_valid  <= 0;
       vif.in_last   <= 0;
       vif.out_ready <= 0;
       vif.a_col     <= '0;
       vif.b_row     <= '0;
-      wait (vif.rst_n === 1'b1);
-      @(negedge vif.clk);
-      fork
-        input_thread();
-        drain_thread();
-      join
-    endtask
+    endfunction
 
     task input_thread();
       mac_txn t;
       forever begin
         seq_item_port.get_next_item(t);
+        item_busy = 1;
         drive_tile(t);
         tiles_driven++;
+        item_busy = 0;
         seq_item_port.item_done();
       end
     endtask
@@ -133,6 +160,8 @@ package mac_pkg;
     int fd;
     int n_in_stall  = 0;   // cycles of in_valid && !in_ready  (A8 antecedent)
     int n_out_stall = 0;   // cycles of out_valid && !out_ready (A2 antecedent)
+    int n_discarded = 0;   // partial tiles thrown away because reset hit mid-tile
+    int n_rows_seen = 0;   // drain rows collected for the current tile
     `uvm_component_utils(mac_monitor)
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
@@ -156,12 +185,23 @@ package mac_pkg;
           end
           if (vif.out_valid && vif.out_ready) begin
             cur.c_rows[vif.out_row] = vif.c_row;
+            n_rows_seen++;
             if (vif.out_last) begin
               dump_tile(cur);
               ap.write(cur);
               cur = mac_obs::type_id::create("obs");
+              n_rows_seen = 0;
             end
           end
+        end else if (cur.a_beats.size() != 0 || n_rows_seen != 0) begin
+          // Reset mid-tile / mid-drain: the DUT has thrown its accumulators away, so the
+          // partial tile has no defined result. Discard it rather than let its beats merge
+          // into the next tile (which the scoreboard would then flag as a DUT error).
+          n_discarded++;
+          `uvm_info("MON", $sformatf("reset: discarded partial tile (%0d beats, %0d rows drained)",
+                    cur.a_beats.size(), n_rows_seen), UVM_LOW)
+          cur = mac_obs::type_id::create("obs");
+          n_rows_seen = 0;
         end
       end
     endtask
@@ -417,6 +457,21 @@ package mac_pkg;
     endtask
   endclass
 
+  // Tiles long enough (K >= 4) that a reset after 1 or 3 accepted beats lands mid-ACCEPT.
+  class mac_reset_seq extends uvm_sequence #(mac_txn);
+    int unsigned n_tiles = 24;
+    `uvm_object_utils(mac_reset_seq)
+    function new(string name = "mac_reset_seq"); super.new(name); endfunction
+    task body();
+      repeat (n_tiles) begin
+        req = mac_txn::type_id::create("req");
+        start_item(req);
+        if (!req.randomize() with { k_len inside {[4:16]}; }) `uvm_fatal("RAND", "randomize failed")
+        finish_item(req);
+      end
+    endtask
+  endclass
+
   // ---------------------------------------------------------------- tests
   class mac_base_test extends uvm_test;
     mac_env env;
@@ -460,6 +515,90 @@ package mac_pkg;
     virtual function uvm_sequence #(mac_txn) make_seq();
       mac_corner_seq s = mac_corner_seq::type_id::create("seq");
       return s;
+    endfunction
+  endclass
+  // E5/E6 audit item: reset asserted in the middle of a tile. Four scenarios, each a reset
+  // pulse (2-4 cycles) fired from a precise protocol point, followed by >= 2 clean tiles to
+  // prove recovery. A9/A10 check the DUT side; the scoreboard checks the first tiles after.
+  class mac_reset_test extends mac_base_test;
+    typedef enum {MID_ACCEPT, MID_DRAIN} where_e;
+    typedef struct { where_e where; int unsigned after; } scen_t;
+    scen_t scen [4] = '{'{MID_ACCEPT, 1}, '{MID_ACCEPT, 3}, '{MID_DRAIN, 1}, '{MID_DRAIN, 2}};
+    int n_fired = 0;
+    virtual mac_if vif;
+    virtual rst_if rif;
+    `uvm_component_utils(mac_reset_test)
+    function new(string name, uvm_component parent); super.new(name, parent); endfunction
+
+    function void build_phase(uvm_phase phase);
+      super.build_phase(phase);
+      if (!uvm_config_db#(virtual mac_if)::get(this, "", "vif", vif) ||
+          !uvm_config_db#(virtual rst_if)::get(this, "", "rif", rif))
+        `uvm_fatal("NOVIF", "mac_reset_test: missing vif/rif")
+    endfunction
+
+    virtual function uvm_sequence #(mac_txn) make_seq();
+      mac_reset_seq s = mac_reset_seq::type_id::create("seq");
+      return s;
+    endfunction
+
+    // Wait (sampling at posedge, like the monitor) until `after` beats of the current tile
+    // were accepted, or `after` drain rows were handed over; then reset at the next negedge.
+    task fire(scen_t sc);
+      int beats = 0, rows = 0;
+      forever begin
+        @(posedge vif.clk);
+        if (vif.rst_n !== 1'b1) begin beats = 0; rows = 0; continue; end
+        if (vif.in_valid && vif.in_ready) beats = vif.in_last ? 0 : beats + 1;
+        if (vif.out_valid && vif.out_ready) rows = vif.out_last ? 0 : rows + 1;
+        if (sc.where == MID_ACCEPT && beats == sc.after && vif.in_ready) break;
+        if (sc.where == MID_DRAIN  && rows  == sc.after && vif.out_valid) break;
+      end
+      @(negedge vif.clk);
+      `uvm_info("RST", $sformatf("reset pulse %0d: %s after %0d %s (out_row=%0d)", n_fired + 1,
+                sc.where.name(), sc.after, sc.where == MID_ACCEPT ? "beats" : "rows",
+                vif.out_row), UVM_LOW)
+      rif.rst_req <= 1;
+      repeat ($urandom_range(2, 4)) @(negedge vif.clk);
+      rif.rst_req <= 0;
+      n_fired++;
+    endtask
+
+    task wait_tiles(int n);
+      repeat (n) begin
+        do @(posedge vif.clk);
+        while (!(vif.rst_n === 1'b1 && vif.out_valid && vif.out_ready && vif.out_last));
+      end
+    endtask
+
+    task run_phase(uvm_phase phase);
+      uvm_sequence #(mac_txn) seq = make_seq();
+      phase.raise_objection(this);
+      fork begin
+        fork
+          seq.start(env.agt.sqr);
+          begin
+            wait_tiles(1);
+            foreach (scen[i]) begin fire(scen[i]); wait_tiles(2); end
+            wait (0);
+          end
+        join_any
+        disable fork;
+      end join
+      env.agt.drv.wait_all_drained();
+      phase.drop_objection(this);
+    endtask
+
+    function void check_phase(uvm_phase phase);
+      // Guard against a vacuous pass: every scenario must fire and cost a partial tile.
+      if (n_fired != $size(scen))
+        `uvm_error("RST", $sformatf("only %0d/%0d reset scenarios fired", n_fired, $size(scen)))
+      if (env.agt.mon.n_discarded != $size(scen))
+        `uvm_error("RST", $sformatf("monitor discarded %0d partial tiles, expected %0d",
+                   env.agt.mon.n_discarded, $size(scen)))
+      else
+        `uvm_info("RST", $sformatf("%0d mid-tile resets fired, %0d partial tiles discarded, %0d aborted by driver",
+                  n_fired, env.agt.mon.n_discarded, env.agt.drv.tiles_aborted), UVM_LOW)
     endfunction
   endclass
 endpackage
