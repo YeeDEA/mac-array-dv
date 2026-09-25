@@ -95,7 +95,7 @@ CMOS 게이트는 본질적으로 **반전(inverting)** 한다. pull-down이 f�
 | `if (clr) … else if (en) …` | 누산기 입력 앞의 **2:1 MUX** (§5) |
 | `always_ff` | 전송 게이트 기반 master-slave D 플립플롭 |
 
-그래서 README의 "PE 16개"는 대략 **곱셈기 16개 + 32b 가산기 16개 + 512개 FF** 다. 게이트 수 실측은 ROADMAP의 Yosys 합성 리포트 항목에서 다룬다.
+그래서 README의 "PE 16개"는 대략 **곱셈기 16개 + 32b 가산기 16개 + 512개 FF** 다. 게이트 수 실측은 [synth_report.md](synth_report.md): Yosys generic 합성(ABC 없음) 기준 곱셈기 456 셀 vs 32b 가산기 220 셀 (약 2.1배), 배열 전체 FF 515개 = 512 누산기 + 3 제어.
 
 주입 버그와의 연결도 있다:
 - `BUG4` (b를 unsigned로 확장) — Baugh-Wooley에서 부호 비트 부분곱을 NAND 대신 AND로 넣는 실수와 같은 종류.

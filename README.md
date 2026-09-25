@@ -16,9 +16,11 @@ mac-array-dv/
 ├── tb_uvm/        # agent, driver, monitor, scoreboard, sequences, env, test
 ├── sva/           # protocol / data-integrity assertions
 ├── regress/       # Python regression scripts + seed management + summaries
+├── synth/         # Yosys generic synthesis script (python synth/run_synth.py)
 ├── docs/
 │   ├── verification_plan.md   # feature → coverage → assertion mapping
 │   ├── cmos_background.md     # CMOS gate background → what a MAC PE synthesizes to (Korean)
+│   ├── synth_report.md        # Yosys cell counts: multiplier vs adder vs flops
 │   ├── coverage_report/       # screenshots + numbers
 │   └── bug_log.md             # bug reports (incl. injected-bug hunt)
 └── README.md
@@ -28,6 +30,7 @@ mac-array-dv/
 
 - Vivado 2020.2 `xsim` (UVM 1.2 built in — no extra installs), simulation only
 - Python 3 for the golden model and regression driver
+- Yosys 0.69 (`pip install yowasp-yosys`) for generic gate-count synthesis — [synth_report.md](docs/synth_report.md)
 - CI (GitHub Actions): Verilator lint of `rtl/` clean **and with each injected-bug hook**,
   plus 65 pytest cases over the golden model — the checks that need no simulator licence
 
