@@ -49,7 +49,8 @@
 - [x] M0: arbitrary 4×4 signed matmul exact vs golden model (50 tiles)
 - [x] M1: assertion catches injected bug with evidence (docs/coverage_report/m1_sva_violation.txt)
 - [x] M2: 20-seed unattended regression clean — 22/22 runs, coverage 100%
-      (extended sweep: 50 seeds → **52/52 runs, ~1000 tiles, 0 mismatches**)
+      (extended sweep: 50 seeds → **52/52 runs, ~1000 tiles, 0 mismatches**; after E5/E6 with
+      5 reset seeds added → **57/57 runs, 1099 tiles, 0 mismatches, 25/25 Python bins**)
 - [x] Functional coverage ≥ 90% target → measured 100% (both SV covergroups and Python bins)
 - [x] M3: injected-bug hunt ≥ 4/5 caught → **5/5 caught** (docs/bug_log.md)
 

@@ -48,7 +48,7 @@ mac-array-dv/
 
 | Metric | Value |
 |---|---|
-| Regression | **52/52 runs PASS** (smoke + corner + 50 random seeds × 20 tiles, ~1000 tiles) |
+| Regression | **57/57 runs PASS** — smoke + corner + 5 reset seeds (4 mid-ACCEPT/mid-DRAIN resets each) + 50 random seeds × 20 tiles; **1099 tiles** cross-checked against the Python golden model, 0 mismatches, 0 SVA violations ([summary.md](regress/results/summary.md)) |
 | Functional coverage | **25/25 Python bins (100%)** aggregated across the sweep; SV `cg_vals` reaches 100% per run, `cg_tile` closes across the suite (K = 64 comes from the directed corner tiles, not from any single random run) |
 | Assertions | 12 SVA — protocol, state, reset (acc + FSM + row), and **datapath** checks that recompute the accumulator from the spec; A1/A5/A6 written against interface intent, each proven by an injected bug; 0 violations on clean RTL |
 | Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
