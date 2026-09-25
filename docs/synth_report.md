@@ -27,6 +27,7 @@ Reproduce: `pip install yowasp-yosys` then `python synth/run_synth.py`
 | `mac_pe` | one PE (all of the above) | 960 | 431 | 182 | 338 | 0 | 9 | 32 | 7752+ |
 | `ctrl` | tile FSM | 21 | 9 | 4 | 1 | 3 | 4 | 3 | 134+ |
 | `mac_array_4x4` | full 4x4 array (16 PE + ctrl + c_row mux) | 16242 | 7385 | 3260 | 5409 | 131 | 40 | 515 | 130430+ |
+| `mac_array_4x4` | 8x8 build (64 PE), chparam N=8 | 65015 | 29610 | 13369 | 21634 | 260 | 77 | 2052 | 520756+ |
 
 `pe_mul`/`pe_add`/`pe_reg` are in `synth/pe_parts.sv`: each is one expression of
 `rtl/mac_pe.sv` synthesized alone so the PE can be split by function.
@@ -48,6 +49,10 @@ Reproduce: `pip install yowasp-yosys` then `python synth/run_synth.py`
   multiply-accumulate mapper; without ABC to clean up afterwards, that lowering is less
   compact than the two separate operators. With ABC (or a real synthesis tool) this gap is
   expected to shrink or invert — not measured here, so no number is claimed.
+- **N = 8 scales as expected.** With the array parameterized (`chparam -set N 8`), flops are
+  2052 = 64 × 32 + 1 state + 3 row bits, and logic is 65015 cells ≈ 64 × 960 (61440) + an
+  8:1 read-out mux over 256 bits — ~4.0× the 4×4 build, i.e. quadratic in N, as the PE
+  count is.
 - **Array ≈ 16 × PE.** 16 × 960 = 15360 of the 16242 logic cells; the rest is the 4:1
   `c_row` read-out mux (131 `$_MUX_` + glue) and the 21-cell FSM. Control is ~0.1% of logic.
 

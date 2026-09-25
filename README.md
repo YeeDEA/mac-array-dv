@@ -1,6 +1,6 @@
 # mac-array-dv
 
-A 4×4 INT8 output-stationary MAC array in SystemVerilog, verified with a from-scratch UVM 1.2 environment — constrained-random stimulus, reference-model scoreboard, SVA, functional coverage, and Python-driven regression.
+A 4×4 INT8 output-stationary MAC array in SystemVerilog (parameterized N×N, default N = 4, also regressed at 8×8), verified with a from-scratch UVM 1.2 environment — constrained-random stimulus, reference-model scoreboard, SVA, functional coverage, and Python-driven regression.
 
 ## Motivation
 
@@ -53,8 +53,17 @@ mac-array-dv/
 | Assertions | 12 SVA — protocol, state, reset (acc + FSM + row), and **datapath** checks that recompute the accumulator from the spec; A1/A5/A6 written against interface intent, each proven by an injected bug; 0 violations on clean RTL |
 | Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
 | Injected-bug hunt | **8/8 caught** by SVA (BUG1–5 + BUG6–8 added to prove the rewritten assertions); scoreboard also catches 7/8 — BUG8 is functionally masked ([bug_log.md](docs/bug_log.md)) |
+| 8×8 build | `MAC_N=8 python regress/run_regress.py --seeds 20` → **27/27 runs PASS**, 499 tiles cross-checked, 0 mismatches, 25/25 bins ([summary_n8.md](regress/results/summary_n8.md)); BUG2/BUG3/BUG7 still caught by SVA at N = 8 |
+| Synthesis (generic Yosys, no ABC/liberty) | PE: 8×8 multiplier 456 cells vs 32b adder 220 (~2.1×); 4×4 array 16242 logic cells + 515 flops ([synth_report.md](docs/synth_report.md)) |
 | Verification plan | 9 features → 2 SV covergroups (+25 Python bins) → 12 assertions ([verification_plan.md](docs/verification_plan.md)) |
-| Known gaps | Documented, not hidden — see [verification_plan.md §7](docs/verification_plan.md). An audit of this environment found assertion A8 passing **vacuously**; the driver was reworked so the stall it checks actually occurs, and the monitor now fails the test if it doesn't. |
+| Known gaps | Documented, not hidden — see [verification_plan.md §6](docs/verification_plan.md). An audit of this environment found assertion A8 passing **vacuously**; the driver was reworked so the stall it checks actually occurs, and the monitor now fails the test if it doesn't. |
+
+### Future work
+
+- AXI-Stream wrapper around the valid/ready ports, with an AXI-Stream UVM agent
+- FPGA bring-up (Vivado synthesis/implementation + on-board test)
+- Liberty-mapped area/timing with an open PDK (needs a Yosys build with working ABC)
+- E7: the `ACC_W` parameter is still inert (`c_row` lanes, SVA and scoreboard assume 32)
 
 ### Architecture
 

@@ -82,6 +82,16 @@ They are listed here rather than quietly fixed, because "the testbench passed" i
 Side effect: the new A6 also fires on the value bugs BUG1/BUG4 (with A11), and the new A5
 fires on BUG5. With BUG6–8 the hunt is **8/8 caught**; see [bug_log.md](bug_log.md).
 
+### 6.2 Array parameterization (N × N)
+
+`mac_array_4x4`, `ctrl`, `mac_if` and the SVA module take a parameter `N` (default 4, N ≥ 2;
+the module name is kept for history). The UVM package and `tb_top` follow the `MAC_N` macro;
+the monitor's dump carries N (`TILE K N`) so the Python cross-check needs no flag.
+Measured at N = 8: `MAC_N=8 python regress/run_regress.py --seeds 20` → **27/27 PASS,
+499 tiles, 0 mismatches, 25/25 Python bins**, and BUG2 / BUG3 / BUG7 are still caught by
+A1+A4 / A7 / A6 respectively. BUG3 is hard-wired to PE(2,3) and needs N ≥ 4.
+The N = 4 sweep was rerun after the change: 57/57 PASS, unchanged.
+
 ## 7. Simulator limitations found (xsim 2020.2)
 
 | Limitation | Workaround |
@@ -89,4 +99,5 @@ fires on BUG5. With BUG6–8 the hunt is **8/8 caught**; see [bug_log.md](bug_lo
 | `default disable iff` unsupported | per-property `disable iff (!rst_n)` |
 | `$past`/`$stable` unsupported in properties | hand-rolled previous-cycle sample registers in the SVA module |
 | `-testplusarg` needs quoting on Windows | wrapped in run scripts |
+| `xvlog -d NAME=VALUE` is mangled (xvlog is a `.bat`; cmd splits on `=`) | pass defines through an option file (`-f defines.f`) |
 | UVM lib has no timescale | `xelab -timescale 1ns/1ps` |

@@ -20,13 +20,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "out")
 RTL = "../rtl/mac_pe.sv ../rtl/ctrl.sv ../rtl/mac_array_4x4.sv"
 
-TARGETS = [                                   # (top, sources, note)
+TARGETS = [                                   # (top, sources, note[, N])
     ("pe_mul", "pe_parts.sv", "8x8 signed multiplier (a*b)"),
     ("pe_add", "pe_parts.sv", "32b + sign-extended 16b adder"),
     ("pe_reg", "pe_parts.sv", "32b accumulator register w/ rst/clr/en"),
     ("mac_pe", RTL, "one PE (all of the above)"),
     ("ctrl", RTL, "tile FSM"),
     ("mac_array_4x4", RTL, "full 4x4 array (16 PE + ctrl + c_row mux)"),
+    ("mac_array_4x4", RTL, "8x8 build (64 PE), chparam N=8", 8),
 ]
 
 
@@ -37,19 +38,21 @@ def yosys_cmd():
     sys.exit("no yosys found: pip install yowasp-yosys")
 
 
-def run(top, srcs):
+def run(top, srcs, n=None):
     # YoWASP runs in a WASI sandbox that only sees the working directory tree, so paths
     # are relative to the repo root (cwd = repo root).
     srcs = " ".join(os.path.relpath(os.path.join(HERE, s), os.path.dirname(HERE)).replace("\\", "/")
                     for s in srcs.split())
-    script = f"read_verilog -sv {srcs}; synth -top {top} -flatten -noabc; stat -tech cmos"
+    chp = f"chparam -set N {n} {top}; " if n else ""
+    script = f"read_verilog -sv {srcs}; {chp}synth -top {top} -flatten -noabc; stat -tech cmos"
     p = subprocess.run([yosys_cmd(), "-p", script], cwd=os.path.dirname(HERE),
                        capture_output=True, encoding="utf-8", errors="replace")
     log = p.stdout + p.stderr
-    with open(os.path.join(OUT, f"{top}.log"), "w", encoding="utf-8") as fh:
+    tag = f"{top}_n{n}" if n else top
+    with open(os.path.join(OUT, f"{tag}.log"), "w", encoding="utf-8") as fh:
         fh.write(log)
     if p.returncode != 0:
-        sys.exit(f"yosys failed on {top}; see synth/out/{top}.log")
+        sys.exit(f"yosys failed on {tag}; see synth/out/{tag}.log")
     stat = log[log.rindex("Printing statistics"):]
     cells = {m.group(2): int(m.group(1)) for m in re.finditer(r"^\s+(\d+)\s+(\$_\w+)", stat, re.M)}
     total = int(re.search(r"^\s+(\d+) cells", stat, re.M).group(1)) - cells.get("$scopeinfo", 0)
@@ -62,13 +65,14 @@ def main():
     kinds = ["$_AND_", "$_OR_", "$_XOR_", "$_MUX_", "$_NOT_"]
     lines = ["| target | what | logic cells | AND | OR | XOR | MUX | NOT | flops | est. transistors (logic only) |",
              "|---|---|---|---|---|---|---|---|---|---|"]
-    for top, srcs, note in TARGETS:
-        cells, total, tr = run(top, srcs)
+    for top, srcs, note, *n in TARGETS:
+        n = n[0] if n else None
+        cells, total, tr = run(top, srcs, n)
         flops = sum(v for k, v in cells.items() if "DFF" in k)
         logic = total - flops
         lines.append(f"| `{top}` | {note} | {logic} | " +
                      " | ".join(str(cells.get(k, 0)) for k in kinds) + f" | {flops} | {tr} |")
-        print(f"{top:14s} logic={logic:6d} flops={flops:4d} transistors={tr}")
+        print(f"{top + (f' N={n}' if n else ''):18s} logic={logic:6d} flops={flops:4d} transistors={tr}")
     table = "\n".join(lines) + "\n"
     with open(os.path.join(OUT, "summary.md"), "w", encoding="utf-8") as fh:
         fh.write(table)

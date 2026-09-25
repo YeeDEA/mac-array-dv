@@ -1,4 +1,7 @@
 `timescale 1ns/1ps
+`ifndef MAC_N
+  `define MAC_N 4
+`endif
 module tb_top;
   import uvm_pkg::*;
   import mac_pkg::*;
@@ -14,9 +17,10 @@ module tb_top;
   rst_if rif (clk);         // mid-run reset pulses requested by mac_reset_test
   wire rst_n = por_n && !rif.rst_req;
 
-  mac_if ifc (clk, rst_n);
+  localparam int N = `MAC_N;
+  mac_if #(N) ifc (clk, rst_n);
 
-  mac_array_4x4 dut (
+  mac_array_4x4 #(.N(N)) dut (
     .clk, .rst_n,
     .in_valid (ifc.in_valid),
     .in_last  (ifc.in_last),
@@ -31,7 +35,7 @@ module tb_top;
   );
 
   initial begin
-    uvm_config_db#(virtual mac_if)::set(null, "*", "vif", ifc);
+    uvm_config_db#(virtual mac_if #(N))::set(null, "*", "vif", ifc);
     uvm_config_db#(virtual rst_if)::set(null, "*", "rif", rif);
     run_test();
   end

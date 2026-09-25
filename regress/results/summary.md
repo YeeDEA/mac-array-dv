@@ -1,4 +1,4 @@
-# Regression summary
+# Regression summary (N = 4)
 
 **57/57 runs PASS** · Python functional coverage (fallback A): **100.0%** (25/25 bins)
 

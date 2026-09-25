@@ -14,8 +14,8 @@ def wrap32(v):
     return ((v + 2**31) % 2**32) - 2**31
 
 
-def matmul(A, B, K):
-    return [[wrap32(sum(A[i][k] * B[k][j] for k in range(K))) for j in range(4)] for i in range(4)]
+def matmul(A, B, K, n=4):
+    return [[wrap32(sum(A[i][k] * B[k][j] for k in range(K))) for j in range(n)] for i in range(n)]
 
 
 def rand_val(rng):

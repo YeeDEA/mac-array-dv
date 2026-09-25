@@ -6,3 +6,4 @@
 | `mac_pe` | one PE (all of the above) | 960 | 431 | 182 | 338 | 0 | 9 | 32 | 7752+ |
 | `ctrl` | tile FSM | 21 | 9 | 4 | 1 | 3 | 4 | 3 | 134+ |
 | `mac_array_4x4` | full 4x4 array (16 PE + ctrl + c_row mux) | 16242 | 7385 | 3260 | 5409 | 131 | 40 | 515 | 130430+ |
+| `mac_array_4x4` | 8x8 build (64 PE), chparam N=8 | 65015 | 29610 | 13369 | 21634 | 260 | 77 | 2052 | 520756+ |

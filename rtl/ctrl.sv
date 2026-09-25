@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
-// Tile control: ACCEPT (stream K beats, last flagged) -> DRAIN (rows 0..3) -> auto-clear -> ACCEPT.
-module ctrl (
+// Tile control: ACCEPT (stream K beats, last flagged) -> DRAIN (rows 0..N-1) -> auto-clear -> ACCEPT.
+module ctrl #(
+  parameter int N   = 4      // N >= 2
+) (
   input  logic       clk,
   input  logic       rst_n,
   input  logic       in_valid,
@@ -9,13 +11,14 @@ module ctrl (
   input  logic       out_ready,
   output logic       out_valid,
   output logic       out_last,
-  output logic [1:0] out_row,
+  output logic [$clog2(N)-1:0] out_row,
   output logic       en,
   output logic       clr
 );
+  localparam int RW = $clog2(N);
   typedef enum logic {S_ACCEPT, S_DRAIN} state_e;
   state_e state;
-  logic [1:0] row;
+  logic [RW-1:0] row;
 
   wire accept_beat = in_valid && in_ready;
 `ifdef BUG5
@@ -30,9 +33,9 @@ module ctrl (
   assign out_valid = rst_n && (state == S_DRAIN);
   assign out_row   = row;
 `ifdef BUG2
-  assign out_last  = (row == 2'd2);        // BUG2: off-by-one, tile ends a row early
+  assign out_last  = (row == RW'(N - 2));  // BUG2: off-by-one, tile ends a row early
 `else
-  assign out_last  = (row == 2'd3);
+  assign out_last  = (row == RW'(N - 1));
 `endif
 `ifdef BUG6
   assign en  = in_valid && rst_n;          // BUG6: accumulate on in_valid, ignoring in_ready
@@ -56,7 +59,7 @@ module ctrl (
                     row   <= '0;
                   end
         S_DRAIN:  if (drain_beat) begin
-                    row <= row + 2'd1;
+                    row <= row + 1'b1;
                     if (out_last) state <= S_ACCEPT;
                   end
       endcase

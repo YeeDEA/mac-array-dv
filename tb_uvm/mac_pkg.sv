@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-// UVM 1.2 environment for mac_array_4x4 — txn, sequences, agent (sequencer/driver/monitor),
+// UVM 1.2 environment for mac_array_4x4 (N x N, N = `MAC_N, default 4) — txn, sequences, agent (sequencer/driver/monitor),
 // reference-model scoreboard, functional coverage subscriber, env, tests.
 // Compile with: xvlog -sv -L uvm  (add -d NO_FCOV if covergroups fight the simulator)
 package mac_pkg;
@@ -10,12 +10,19 @@ package mac_pkg;
   // must actually reach it, or the 32-bit accumulator claim is untested.
   localparam int KMAX = 64;
 
+  // Array dimension. Compile with -d MAC_N=8 for the 8x8 build; tb_top uses the same macro.
+`ifndef MAC_N
+  `define MAC_N 4
+`endif
+  localparam int N  = `MAC_N;
+  localparam int RW = (N > 1) ? $clog2(N) : 1;   // out_row width
+
   // ---------------------------------------------------------------- stimulus item
   // One tile: K beats. Beat k, lane i: a = a_flat[4k+i], b = b_flat[4k+j].
   class mac_txn extends uvm_sequence_item;
     rand int unsigned k_len;
-    rand byte a_flat [4*KMAX];
-    rand byte b_flat [4*KMAX];
+    rand byte a_flat [N*KMAX];
+    rand byte b_flat [N*KMAX];
 
     // Weighted toward short tiles for runtime, but long tiles must appear — the
     // accumulator margin is only exercised near K = 64.
@@ -33,9 +40,9 @@ package mac_pkg;
 
   // ---------------------------------------------------------------- observed tile
   class mac_obs extends uvm_object;
-    logic [31:0]  a_beats [$];
-    logic [31:0]  b_beats [$];
-    logic [127:0] c_rows [4];
+    logic [8*N-1:0]  a_beats [$];
+    logic [8*N-1:0]  b_beats [$];
+    logic [32*N-1:0] c_rows [N];
 
     `uvm_object_utils(mac_obs)
     function new(string name = "mac_obs"); super.new(name); endfunction
@@ -46,14 +53,14 @@ package mac_pkg;
   // beat show up while the previous tile is still draining — the only way in_valid && !in_ready
   // ever occurs, and therefore the only way assertion A8 is anything but a vacuous pass.
   class mac_driver extends uvm_driver #(mac_txn);
-    virtual mac_if vif;
+    virtual mac_if #(N) vif;
     int tiles_driven  = 0;
     int tiles_drained = 0;
     `uvm_component_utils(mac_driver)
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
-      if (!uvm_config_db#(virtual mac_if)::get(this, "", "vif", vif))
+      if (!uvm_config_db#(virtual mac_if #(N))::get(this, "", "vif", vif))
         `uvm_fatal("NOVIF", "mac_driver: no virtual interface")
     endfunction
 
@@ -109,10 +116,10 @@ package mac_pkg;
     endtask
 
     task drive_tile(mac_txn t);
-      logic [31:0] ac, br;
+      logic [8*N-1:0] ac, br;
       for (int k = 0; k < t.k_len; k++) begin
-        for (int i = 0; i < 4; i++) ac[8*i +: 8] = t.a_flat[4*k+i];
-        for (int j = 0; j < 4; j++) br[8*j +: 8] = t.b_flat[4*k+j];
+        for (int i = 0; i < N; i++) ac[8*i +: 8] = t.a_flat[N*k+i];
+        for (int j = 0; j < N; j++) br[8*j +: 8] = t.b_flat[N*k+j];
         repeat ($urandom_range(0, 2)) begin      // random idle gaps
           vif.in_valid <= 0;
           @(negedge vif.clk);
@@ -155,7 +162,7 @@ package mac_pkg;
 
   // ---------------------------------------------------------------- monitor
   class mac_monitor extends uvm_monitor;
-    virtual mac_if vif;
+    virtual mac_if #(N) vif;
     uvm_analysis_port #(mac_obs) ap;
     int fd;
     int n_in_stall  = 0;   // cycles of in_valid && !in_ready  (A8 antecedent)
@@ -166,7 +173,7 @@ package mac_pkg;
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
-      if (!uvm_config_db#(virtual mac_if)::get(this, "", "vif", vif))
+      if (!uvm_config_db#(virtual mac_if #(N))::get(this, "", "vif", vif))
         `uvm_fatal("NOVIF", "mac_monitor: no virtual interface")
       ap = new("ap", this);
       fd = $fopen("txn_dump.log", "w");
@@ -208,11 +215,11 @@ package mac_pkg;
 
     function void dump_tile(mac_obs o);
       if (fd == 0) return;
-      $fwrite(fd, "TILE %0d\n", o.a_beats.size());
+      $fwrite(fd, "TILE %0d %0d\n", o.a_beats.size(), N);
       foreach (o.a_beats[k]) $fwrite(fd, "AB %h %h\n", o.a_beats[k], o.b_beats[k]);
-      for (int r = 0; r < 4; r++) begin
+      for (int r = 0; r < N; r++) begin
         $fwrite(fd, "C");
-        for (int j = 0; j < 4; j++) $fwrite(fd, " %0d", int'(o.c_rows[r][32*j +: 32]));
+        for (int j = 0; j < N; j++) $fwrite(fd, " %0d", int'(o.c_rows[r][32*j +: 32]));
         $fwrite(fd, "\n");
       end
     endfunction
@@ -246,22 +253,22 @@ package mac_pkg;
     endfunction
 
     function void write(mac_obs o);
-      longint acc [4][4];
+      longint acc [N][N];
       byte sa, sb;
       int exp32, got32;
       foreach (acc[i]) foreach (acc[i][j]) acc[i][j] = 0;
       foreach (o.a_beats[k]) begin
-        for (int i = 0; i < 4; i++) begin
+        for (int i = 0; i < N; i++) begin
           sa = byte'(o.a_beats[k][8*i +: 8]);
-          for (int j = 0; j < 4; j++) begin
+          for (int j = 0; j < N; j++) begin
             sb = byte'(o.b_beats[k][8*j +: 8]);
             acc[i][j] += sa * sb;
           end
         end
       end
       n_tiles++;
-      for (int i = 0; i < 4; i++) begin
-        for (int j = 0; j < 4; j++) begin
+      for (int i = 0; i < N; i++) begin
+        for (int j = 0; j < N; j++) begin
           automatic logic signed [31:0] raw = o.c_rows[i][32*j +: 32];
           // int'() would silently turn an undelivered (X) row into 0, which matches an
           // expected 0 — check for unknowns before the value compare.
@@ -345,7 +352,7 @@ package mac_pkg;
       cov_k = t.a_beats.size();
       cg_tile.sample();
       foreach (t.a_beats[k]) begin
-        for (int i = 0; i < 4; i++) begin
+        for (int i = 0; i < N; i++) begin
           cov_a = byte'(t.a_beats[k][8*i +: 8]);
           cov_b = byte'(t.b_beats[k][8*i +: 8]);
           cg_vals.sample();
@@ -525,14 +532,14 @@ package mac_pkg;
     typedef struct { where_e where; int unsigned after; } scen_t;
     scen_t scen [4] = '{'{MID_ACCEPT, 1}, '{MID_ACCEPT, 3}, '{MID_DRAIN, 1}, '{MID_DRAIN, 2}};
     int n_fired = 0;
-    virtual mac_if vif;
+    virtual mac_if #(N) vif;
     virtual rst_if rif;
     `uvm_component_utils(mac_reset_test)
     function new(string name, uvm_component parent); super.new(name, parent); endfunction
 
     function void build_phase(uvm_phase phase);
       super.build_phase(phase);
-      if (!uvm_config_db#(virtual mac_if)::get(this, "", "vif", vif) ||
+      if (!uvm_config_db#(virtual mac_if #(N))::get(this, "", "vif", vif) ||
           !uvm_config_db#(virtual rst_if)::get(this, "", "rif", rif))
         `uvm_fatal("NOVIF", "mac_reset_test: missing vif/rif")
     endfunction

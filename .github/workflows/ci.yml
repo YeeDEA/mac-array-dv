@@ -71,6 +71,17 @@ jobs:
           warns="$(grep -c '%Warning' lint-logs/lint-clean.log || true)"
           echo "clean lint OK — ${warns} warning line(s), all non-fatal"
 
+      - name: Lint the 8x8 build (N parameter)
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p lint-logs
+          verilator --lint-only -Wall -Wno-fatal $TIMING_FLAG --top-module "$RTL_TOP" -GN=8 rtl/*.sv 2>&1 | tee lint-logs/lint-n8.log
+          if grep -q '%Error' lint-logs/lint-n8.log; then
+            echo "::error title=Verilator::Errors found while linting N=8"
+            exit 1
+          fi
+
       - name: Lint every injected-bug hook (BUG1..BUG8 must still elaborate)
         shell: bash
         run: |

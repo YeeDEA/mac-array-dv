@@ -36,6 +36,12 @@ def shell(cmdline):
 
 
 def compile_env(defines=""):
+    if os.environ.get("MAC_N"):
+        # xvlog is a .bat wrapper and cmd splits arguments on '=', so NAME=VALUE defines
+        # cannot go on the command line; pass them through an xvlog option file instead.
+        with open(os.path.join(TB, "defines.f"), "w") as fh:
+            fh.write(f"-d MAC_N={os.environ['MAC_N']}\n")
+        defines += " -f defines.f"
     rc, out = shell(f"xvlog -sv -L uvm {defines} {RTL} {SVA} rst_if.sv mac_pkg.sv tb_top.sv "
                     f"&& xelab tb_top -L uvm -timescale 1ns/1ps -s uvm_sim")
     if rc != 0:
@@ -62,10 +68,10 @@ def run_test(test, seed, ntiles=None):
 
 
 # ---------------- Python-side golden cross-check + coverage (from txn_dump.log)
-def lanes(hex32):
-    x = int(hex32, 16)
+def lanes(hexw, n=4):
+    x = int(hexw, 16)
     out = []
-    for i in range(4):
+    for i in range(n):
         v = (x >> (8 * i)) & 0xFF
         out.append(v - 256 if v >= 128 else v)
     return out
@@ -114,23 +120,25 @@ def cross_check(dump_path, cov):
     i = 0
     while i < len(lines):
         assert lines[i].startswith("TILE")
-        K = int(lines[i].split()[1])
+        hdr = lines[i].split()
+        K = int(hdr[1])
+        n = int(hdr[2]) if len(hdr) > 2 else 4   # "TILE K N" (older dumps: "TILE K", N = 4)
         cov.sample_k(K)
-        A = [[0] * K for _ in range(4)]
-        B = [[0] * 4 for _ in range(K)]
+        A = [[0] * K for _ in range(n)]
+        B = [[0] * n for _ in range(K)]
         for k in range(K):
             _, ah, bh = lines[i + 1 + k].split()
-            al, bl = lanes(ah), lanes(bh)
-            for x in range(4):
+            al, bl = lanes(ah, n), lanes(bh, n)
+            for x in range(n):
                 A[x][k] = al[x]
                 B[k][x] = bl[x]
                 cov.sample(al[x], bl[x])
-        obs = [list(map(int, lines[i + 1 + K + r].split()[1:])) for r in range(4)]
-        exp = matmul(A, B, K)
+        obs = [list(map(int, lines[i + 1 + K + r].split()[1:])) for r in range(n)]
+        exp = matmul(A, B, K, n)
         if obs != exp:
             bad += 1
         tiles += 1
-        i += 1 + K + 4
+        i += 1 + K + n
     return tiles, bad
 
 
@@ -180,8 +188,10 @@ def main():
 
     total = len(rows)
     npass = sum(1 for r in rows if r[2])
-    with open(os.path.join(ROOT, "regress", "results", "summary.md"), "w") as fh:
-        fh.write(f"# Regression summary\n\n**{npass}/{total} runs PASS** · "
+    dim = os.environ.get("MAC_N", "4")
+    name = "summary.md" if dim == "4" else f"summary_n{dim}.md"
+    with open(os.path.join(ROOT, "regress", "results", name), "w", encoding="utf-8") as fh:
+        fh.write(f"# Regression summary (N = {dim})\n\n**{npass}/{total} runs PASS** · "
                  f"Python functional coverage (fallback A): **{cov.pct():.1f}%** "
                  f"({sum(1 for v in cov.hits.values() if v > 0)}/{len(cov.hits)} bins)\n\n")
         fh.write("| test | seed | result | UVM_ERROR | SVA viol | SV covergroups | tiles xchecked | xcheck bad |\n")
@@ -196,7 +206,7 @@ def main():
             for test, seed in fails:
                 fh.write(f'xsim uvm_sim -runall -sv_seed {seed} -testplusarg "UVM_TESTNAME={test}"\n')
             fh.write("```\n")
-    print(f"\n{npass}/{total} PASS · python coverage {cov.pct():.1f}% -> regress/results/summary.md")
+    print(f"\n{npass}/{total} PASS · python coverage {cov.pct():.1f}% -> regress/results/{name}")
     sys.exit(0 if npass == total else 1)
 
 
