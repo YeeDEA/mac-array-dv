@@ -18,6 +18,7 @@ mac-array-dv/
 ├── regress/       # Python regression scripts + seed management + summaries
 ├── docs/
 │   ├── verification_plan.md   # feature → coverage → assertion mapping
+│   ├── cmos_background.md     # CMOS gate background → what a MAC PE synthesizes to (Korean)
 │   ├── coverage_report/       # screenshots + numbers
 │   └── bug_log.md             # bug reports (incl. injected-bug hunt)
 └── README.md
