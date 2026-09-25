@@ -20,6 +20,36 @@ when `in_ready` was already high, so the stall it checks was structurally unreac
 Fixed by splitting the driver into independent input/drain threads; the monitor now counts
 stall cycles and **errors the test if the count is zero**, so the vacuity cannot return silently.
 
+### K distribution ignored — stimulus looked random, but not with the intended weights
+
+- **Symptom.** `c_k` asked for K (tile length) weighted 50 / 25 / 15 / 10 % over
+  1–8 / 9–16 / 17–32 / 33–64. Across the 50-seed sweep the random test instead produced
+  **10.6 / 13.2 / 26.5 / 49.7 %** (1000 tiles) — exactly the uniform-over-1..64 shares
+  (12.5 / 12.5 / 25 / 50). Coverage was still **100 %**, because every K bin was hit; the
+  bins say *whether* a value appeared, not *how often*.
+- **Evidence.** Standalone xsim experiments (1000 draws each, Vivado 2020.2):
+
+  | constraint on `k` | 1–8 | 9–16 | 17–32 | 33–64 |
+  |---|---|---|---|---|
+  | `dist` only | 52.4 | 24.8 | 13.2 | 9.6 |
+  | `inside {[1:64]}` + `dist` (the original `c_k`) | 12.0 | 12.9 | 24.5 | 50.6 |
+  | `dist` + inline `with {k <= 64;}` | 13.3 | 11.7 | 26.1 | 48.9 |
+
+  Removing the redundant `inside` fixed the standalone case but **not** the real
+  environment (still 10.6 / 13.2 / 26.5 / 49.7 %), so the solver's handling of `dist`
+  could not be trusted here. The exact trigger inside the UVM item was not isolated.
+- **Fix.** The weighting no longer depends on the constraint solver:
+  `mac_random_seq::pick_k()` chooses the bucket with a procedural `randcase` and passes the
+  value as `randomize() with { k_len == k; }`; `c_k` keeps only the legal range.
+- **Guard.** `regress/run_regress.py` now reports the random-test K shares and **fails the
+  regression** if any bucket is more than 7.5 points off target (≥ 200 tiles) — coverage alone
+  cannot catch this class of bug.
+- **Re-verify.** 57/57 PASS at N = 4, K shares **48.4 / 22.1 / 16.7 / 12.8 %** over 1000
+  random tiles, coverage 25/25 bins.
+- **Consequence for earlier numbers.** Before the fix, ~50 % of random tiles had K ≥ 33, so
+  the pre-fix sweeps exercised long tiles far *more* than intended (long-K accumulator margin
+  was over-tested, short-K handshake turnover under-tested). No earlier pass/fail result changes.
+
 ## Injected-bug hunt (W16, extended in E5/E6) — 8/8 caught
 
 Each bug is a compile-time define (`xvlog -d BUGn`), hunted by `regress/bug_hunt.py` running

@@ -156,6 +156,7 @@ def main():
         compile_env()
 
     cov = Coverage()
+    kdist = Coverage()   # random-test tiles only: checks the stimulus K distribution itself
     rows, fails = [], []
 
     for name, test, seed in [("smoke", "mac_smoke_test", 1), ("corner", "mac_corner_test", 1)]:
@@ -180,11 +181,24 @@ def main():
     for seed in range(1, args.seeds + 1):
         ok, errs, fatals, sva, c = run_test("mac_random_test", seed, args.ntiles)
         t, b = cross_check(os.path.join(TB, "txn_dump.log"), cov)
+        cross_check(os.path.join(TB, "txn_dump.log"), kdist)
         ok = ok and b == 0
         rows.append(("random", seed, ok, errs, sva, c, t, b))
         if not ok:
             fails.append(("mac_random_test", seed))
         print(f"random   seed={seed:<4d} {'PASS' if ok else 'FAIL'}  sv_cov[{c}] xcheck {t} tiles {b} bad")
+
+    # Stimulus sanity: the random test's K must follow the c_k weights (50/25/15/10 %).
+    # A simulator that silently ignores dist weights still reaches 100 % bin coverage,
+    # so coverage alone cannot catch it (bug_log.md, "K distribution ignored").
+    kb = [kdist.hits["k1"] + kdist.hits["k2_4"] + kdist.hits["k5_8"], kdist.hits["k9_16"],
+          kdist.hits["k17_32"], kdist.hits["k33_64"]]
+    ktot = sum(kb) or 1
+    kshare = [100.0 * x / ktot for x in kb]
+    ktarget = [50, 25, 15, 10]
+    kdist_ok = ktot < 200 or all(abs(o - t) <= 7.5 for o, t in zip(kshare, ktarget))
+    print("random-test K share (target 50/25/15/10 %): "
+          + "/".join(f"{x:.1f}" for x in kshare) + f" over {ktot} tiles -> {'OK' if kdist_ok else 'OFF'}")
 
     total = len(rows)
     npass = sum(1 for r in rows if r[2])
@@ -207,7 +221,7 @@ def main():
                 fh.write(f'xsim uvm_sim -runall -sv_seed {seed} -testplusarg "UVM_TESTNAME={test}"\n')
             fh.write("```\n")
     print(f"\n{npass}/{total} PASS · python coverage {cov.pct():.1f}% -> regress/results/{name}")
-    sys.exit(0 if npass == total else 1)
+    sys.exit(0 if npass == total and kdist_ok else 1)
 
 
 if __name__ == "__main__":

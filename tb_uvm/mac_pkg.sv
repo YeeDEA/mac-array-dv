@@ -26,8 +26,11 @@ package mac_pkg;
 
     // Weighted toward short tiles for runtime, but long tiles must appear — the
     // accumulator margin is only exercised near K = 64.
-    constraint c_k { k_len inside {[1:KMAX]};
-                     k_len dist {[1:8] :/ 50, [9:16] :/ 25, [17:32] :/ 15, [33:64] :/ 10}; }
+    // Legal range only. The K *distribution* (50/25/15/10 % over 1-8 / 9-16 / 17-32 /
+    // 33-64) is chosen procedurally in mac_random_seq::pick_k(): Vivado 2020.2 xsim
+    // silently sampled a `dist` on k_len uniformly inside this environment, which
+    // still reached 100 % bin coverage (bug_log.md, "K distribution ignored").
+    constraint c_k { k_len inside {[1:KMAX]}; }
     // corner-weighted operand distribution
     constraint c_a { foreach (a_flat[x]) a_flat[x] dist
       {-128 := 4, -1 := 2, 0 := 4, 1 := 2, 127 := 4, [-127:-2] :/ 10, [2:126] :/ 10}; }
@@ -410,11 +413,22 @@ package mac_pkg;
     int unsigned n_tiles = 20;
     `uvm_object_utils(mac_random_seq)
     function new(string name = "mac_random_seq"); super.new(name); endfunction
+    // Weighted toward short tiles for runtime, but long tiles must appear — the
+    // accumulator margin is only exercised near K = 64.
+    function int unsigned pick_k();
+      randcase
+        50: return $urandom_range(8, 1);
+        25: return $urandom_range(16, 9);
+        15: return $urandom_range(32, 17);
+        10: return $urandom_range(KMAX, 33);
+      endcase
+    endfunction
     task body();
       repeat (n_tiles) begin
+        int unsigned k = pick_k();
         req = mac_txn::type_id::create("req");
         start_item(req);
-        if (!req.randomize()) `uvm_fatal("RAND", "randomize failed")
+        if (!req.randomize() with { k_len == k; }) `uvm_fatal("RAND", "randomize failed")
         finish_item(req);
       end
     endtask
