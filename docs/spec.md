@@ -7,8 +7,10 @@ Each PE(i,j): `acc += a_col[i] * b_row[j]` — pure output-stationary, no weight
 
 ## Accumulator width = 32 (16-bit product + 16 guard bits)
 INT8×INT8 signed product ∈ [−16256, +16384], which fits signed 16 bits (range −32768..32767).
-Summing N such products needs 16 + ⌈log₂N⌉ bits, so a 32-bit accumulator is exact for N ≤ 2¹⁶ beats
-(worst case |Σ| ≤ N·16384 ≤ 2³⁰ at N = 2¹⁶ — inside signed 32-bit).
+Summing N such products needs 16 + ⌈log₂N⌉ bits by the usual rule of thumb, which gives N ≤ 2¹⁶ beats
+for 32 bits. The tight bound is larger, because the largest product magnitude is 2¹⁴, not 2¹⁵:
+the accumulator is exact while N·16384 ≤ 2³¹ − 1, i.e. **N ≤ 131 071 beats (≈ 2¹⁷)**
+(the negative side, N·16256 ≤ 2³¹, is looser). This single bound is the one used everywhere in the docs.
 Tests bound K ≤ 64, so the margin is 2¹⁰×. No saturation logic: in-spec overflow is impossible,
 and `mac_pe` therefore wraps rather than saturates if the bound is ever exceeded (BUG1 injects exactly that).
 

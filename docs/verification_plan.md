@@ -7,7 +7,7 @@
 
 - 4×4 output-stationary array, outer-product streaming: beat k carries column k of A and
   row k of B; each PE(i,j) does `acc += a[i]*b[j]`. K beats → C = A(4×K)×B(K×4).
-- Accumulator: 32-bit (16-bit product + 16 guard) — exact for K ≤ 2^15, tests bound K ≤ 64.
+- Accumulator: 32-bit (16-bit product + 16 guard) — exact for K ≤ 131 071 (≈ 2^17; derivation in [spec.md](spec.md)), tests bound K ≤ 64.
 - valid/ready handshake on both sides; drain row-by-row; auto-clear at tile boundary.
 
 ## 2. Feature table (final)
