@@ -34,13 +34,21 @@ module ctrl (
 `else
   assign out_last  = (row == 2'd3);
 `endif
+`ifdef BUG6
+  assign en  = in_valid && rst_n;          // BUG6: accumulate on in_valid, ignoring in_ready
+`elsif BUG7
+  assign en  = accept_beat && !in_last;    // BUG7: last beat of every tile dropped
+`else
   assign en  = accept_beat;
+`endif
   assign clr = drain_beat && out_last;
 
   always_ff @(posedge clk) begin
     if (!rst_n) begin
       state <= S_ACCEPT;
-      row   <= '0;
+`ifndef BUG8
+      row   <= '0;                         // BUG8 removes this: row survives a mid-drain reset
+`endif
     end else begin
       unique case (state)
         S_ACCEPT: if (accept_beat && in_last) begin

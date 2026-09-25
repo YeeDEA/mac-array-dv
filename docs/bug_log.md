@@ -20,18 +20,30 @@ when `in_ready` was already high, so the stall it checks was structurally unreac
 Fixed by splitting the driver into independent input/drain threads; the monitor now counts
 stall cycles and **errors the test if the count is zero**, so the vacuity cannot return silently.
 
-## Injected-bug hunt (W16) — 5/5 caught
+## Injected-bug hunt (W16, extended in E5/E6) — 8/8 caught
 
 Each bug is a compile-time define (`xvlog -d BUGn`), hunted by `regress/bug_hunt.py` running
-`mac_corner_test` + `mac_random_test` against the unmodified environment.
+`mac_corner_test` + `mac_random_test` + `mac_reset_test` against the unmodified environment.
+The table below is the first detection per layer on the random test (full per-test detail in
+[regress/results/bug_hunt.md](../regress/results/bug_hunt.md)). BUG6–8 were added to prove the rewritten
+assertions A5/A6/A9 (verification_plan §6.1).
 
-| Bug | Injection | SVA | Scoreboard | Python | Watchdog |
+| Bug | Injection | SVA (first, random test) | Scoreboard | Python | Watchdog |
 |-----|-----------|-----|------------|--------|----------|
-| BUG1 | accumulator wraps at 16 bits | **A11 @265 ns** | tile 1 | 20/20 tiles | — |
-| BUG2 | `out_last` at row 2 (off-by-one) | **A4 @235 ns** | ✓ | 20/20 tiles | ✓ |
-| BUG3 | PE(2,3) `clr` gated off | **A7 @715 ns** | tile 2 | 19/20 tiles | — |
-| BUG4 | `b` zero-extended (sign bug) | **A11 @95 ns** | tile 1 | 20/20 tiles | — |
-| BUG5 | drain ignores `out_ready` | **A2 @195 ns** | ✓ | ✓ | ✓ |
+| BUG1 | accumulator wraps at 16 bits | **A6 + A11 @255 ns** | tile 1 | 20/20 tiles | — |
+| BUG2 | `out_last` at row 2 (off-by-one) | **A1 + A4 @1015 ns** | ✓ | 20/20 tiles | — |
+| BUG3 | PE(2,3) `clr` gated off | **A7 @1085 ns** | tile 2 | 19/20 tiles | — |
+| BUG4 | `b` zero-extended (sign bug) | **A6 + A11 @75 ns** | tile 1 | 20/20 tiles | — |
+| BUG5 | drain ignores `out_ready` | **A2 @995 ns**, A1, A5 | tile 2 | 7/7 tiles | ✓ |
+| BUG6 | `en = in_valid` (accumulates during stall) | **A5 + A2 @1005 ns** | tile 1 | 19/20 tiles | — |
+| BUG7 | `en` masked on `in_last` (last beat dropped) | **A6 @975 ns** | tile 1 | 20/20 tiles | — |
+| BUG8 | drain row not reset | **A9 @15 ns** | — (functionally masked) | — | — |
+
+Numbers are from the post-E6 run; the earlier 5-bug table differed only in which assertion
+fired first (before E6, BUG2 was caught by A4 alone and BUG1/BUG4 by A11 alone).
+BUG8 is the honest outlier: the FSM re-zeroes `row` when a drain starts, so the defect never
+corrupts a result and only the extended A9 can see it. It is kept because a reset that leaves
+state behind is a real class of silicon bug, even when this particular RTL hides it.
 
 ### What changed after the audit — and why it is the most interesting result
 

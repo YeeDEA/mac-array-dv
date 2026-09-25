@@ -71,14 +71,14 @@ jobs:
           warns="$(grep -c '%Warning' lint-logs/lint-clean.log || true)"
           echo "clean lint OK — ${warns} warning line(s), all non-fatal"
 
-      - name: Lint every injected-bug hook (BUG1..BUG5 must still elaborate)
+      - name: Lint every injected-bug hook (BUG1..BUG8 must still elaborate)
         shell: bash
         run: |
-          # docs/spec.md W16: the five bug hooks are compile-time defines that must stay
+          # docs/spec.md W16: the bug hooks are compile-time defines that must stay
           # elaboratable, otherwise regress/bug_hunt.py cannot build them under xsim.
           mkdir -p lint-logs
           failed=""
-          for BUG in BUG1 BUG2 BUG3 BUG4 BUG5; do
+          for BUG in BUG1 BUG2 BUG3 BUG4 BUG5 BUG6 BUG7 BUG8; do
             log="lint-logs/lint-${BUG}.log"
             echo "::group::verilator -D${BUG}"
             set +e
@@ -101,7 +101,7 @@ jobs:
             echo "Broken bug hooks:${failed}"
             exit 1
           fi
-          echo "all five bug hooks elaborate"
+          echo "all eight bug hooks elaborate"
 
       - name: Upload lint logs
         if: always()

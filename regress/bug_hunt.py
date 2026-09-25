@@ -16,17 +16,43 @@ BUGS = {
     "BUG3": "mac_array_4x4.sv — PE(2,3) clr gated off (never clears between tiles)",
     "BUG4": "mac_pe.sv — b zero-extended (sign bug: b treated as unsigned)",
     "BUG5": "ctrl.sv — drain advances without out_ready (handshake violation)",
+    "BUG6": "ctrl.sv — en = in_valid (accumulates during a stall, ignoring in_ready)",
+    "BUG7": "ctrl.sv — en masked on in_last (last beat of every tile dropped)",
+    "BUG8": "ctrl.sv — drain row counter not reset (survives a mid-drain reset)",
 }
-TESTS = [("mac_corner_test", 1), ("mac_random_test", 2)]
+TESTS = [("mac_corner_test", 1), ("mac_random_test", 2), ("mac_reset_test", 1)]
+SVA_FILE = os.path.join(ROOT, "sva", "mac_array_sva.sv")
+
+
+def assertion_names():
+    """Map each source line of mac_array_sva.sv to the assertion label that owns it, so a
+    violation reported as 'Line:NN' can be named (xsim does not print the label)."""
+    starts = []
+    with open(SVA_FILE, encoding="utf-8") as fh:
+        for n, line in enumerate(fh, 1):
+            m = re.match(r"\s*(a_\w+)\s*:\s*assert property", line)
+            if m:
+                starts.append((n, m.group(1)))
+    return starts
+
+
+def name_of(line, starts):
+    best = "?"
+    for n, name in starts:
+        if n <= line:
+            best = name
+    return best
 
 
 def run_one(test, seed):
     rc, out = shell(f'xsim uvm_sim -runall -sv_seed {seed} -testplusarg "UVM_TESTNAME={test}"')
     det = []
-    sva = re.findall(r"Assertion failed.*?\n.*?Line:(\d+)", out)
-    if sva:
-        det.append(f"SVA (mac_array_sva.sv line {sva[0]}, first at "
-                   f"{re.search(r'Time: ([0-9]+ [a-z]+)', out).group(1) if re.search(r'Time: ([0-9]+ [a-z]+)', out) else '?'})")
+    starts = assertion_names()
+    first = {}
+    for m in re.finditer(r"Assertion failed.*?\nTime: (\d+ \w+).*?Line:(\d+)", out):
+        first.setdefault(name_of(int(m.group(2)), starts), m.group(1))
+    if first:
+        det.append("SVA " + ", ".join(f"{n} @{t}" for n, t in first.items()))
     m = re.search(r"UVM_ERROR :\s+(\d+)", out)
     n_err = int(m.group(1)) if m else 0
     sb = re.search(r"\[SB\] tile (\d+) C\[(\d+)\]\[(\d+)\] got (-?\d+) expected (-?\d+)", out)

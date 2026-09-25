@@ -50,9 +50,28 @@ module mac_array_sva (
           + $signed({{24{a_col_q[8*i+7]}}, a_col_q[8*i +: 8]})
           * $signed({{24{b_row_q[8*j+7]}}, b_row_q[8*j +: 8]});
 
-  // A1: input side blocked while draining
+  // Interface-derived tile tracker, independent of the ctrl FSM encoding: after the beat that
+  // carries in_last is accepted, exactly four drain rows are owed before the tile is closed.
+  // Built from handshakes only, so a refactor of ctrl.sv cannot make it agree by construction.
+  wire in_hs   = in_valid && in_ready;
+  wire out_hs  = out_valid && out_ready;
+  wire tile_end = out_hs && out_last;      // drain of row 3 handshaked -> clear
+  logic [2:0] rows_owed;
+  always_ff @(posedge clk)
+    if (!rst_n)                 rows_owed <= 3'd0;
+    else if (in_hs && in_last)  rows_owed <= 3'd4;
+    else if (out_hs && rows_owed != 0) rows_owed <= rows_owed - 3'd1;
+
+  // A1 (rewritten, E6): while any of the four result rows is still owed, no new input beat
+  // may be accepted, the output side must be offering a row, and out_last must mark exactly
+  // the fourth row. The old A1 (out_valid |-> !in_ready) restated the 1-bit FSM decode and
+  // could not fail; this one fails on a tile that drains too few rows (BUG2) or on input
+  // accepted mid-drain.
   a_drain_blocks_in: assert property (@(posedge clk) disable iff (!rst_n)
-    out_valid |-> !in_ready);
+    (rows_owed != 0) |-> !in_hs && out_valid && (out_last == (rows_owed == 3'd1)));
+  // A12: and no row is ever offered that is not owed (added with the A1 rewrite)
+  a_no_orphan_row: assert property (@(posedge clk) disable iff (!rst_n)
+    out_valid |-> rows_owed != 0);
   // A2: output data/row held while stalled
   a_out_stable: assert property (@(posedge clk) disable iff (!rst_n)
     out_valid && !out_ready |=> out_valid && c_row == c_row_q && out_row == out_row_q);
@@ -62,12 +81,16 @@ module mac_array_sva (
   // A4: out_last exactly on row 3
   a_out_last_iff_row3: assert property (@(posedge clk) disable iff (!rst_n)
     out_valid |-> (out_last == (out_row == 2'd3)));
-  // A5: accumulators change only on accepted beat or clear
+  // A5 (rewritten, E6): no phantom accumulation. Antecedent is the INTERFACE (no input
+  // handshake, no tile-end handshake), not the DUT's own en/clr — the old form trusted en,
+  // so a bug that raised en without a handshake made it vacuous (BUG6).
   a_acc_stable_when_idle: assert property (@(posedge clk) disable iff (!rst_n)
-    !en && !clr |=> acc_flat == acc_flat_q);
-  // A6: accumulate exactly on accepted input beat
+    !in_hs && !tile_end |=> acc_flat == acc_flat_q);
+  // A6 (rewritten, E6): no dropped beat. Every beat handshaked on the interface is
+  // accumulated with the spec's arithmetic. The old A6 (en == in_valid && in_ready) was a
+  // copy of the RTL assign; this checks the effect, not the wire (BUG7).
   a_en_iff_accept: assert property (@(posedge clk) disable iff (!rst_n)
-    en == (in_valid && in_ready));
+    in_hs && !tile_end |=> acc_flat == acc_exp);
   // A7: tile boundary clears every accumulator
   a_tile_clear: assert property (@(posedge clk) disable iff (!rst_n)
     out_valid && out_ready && out_last |=> acc_flat == '0);

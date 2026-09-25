@@ -47,10 +47,10 @@ mac-array-dv/
 |---|---|
 | Regression | **52/52 runs PASS** (smoke + corner + 50 random seeds × 20 tiles, ~1000 tiles) |
 | Functional coverage | **25/25 Python bins (100%)** aggregated across the sweep; SV `cg_vals` reaches 100% per run, `cg_tile` closes across the suite (K = 64 comes from the directed corner tiles, not from any single random run) |
-| Assertions | 11 SVA — protocol, state, reset, and one **datapath** check that recomputes the accumulator from the spec; 0 violations on clean RTL |
+| Assertions | 12 SVA — protocol, state, reset (acc + FSM + row), and **datapath** checks that recompute the accumulator from the spec; A1/A5/A6 written against interface intent, each proven by an injected bug; 0 violations on clean RTL |
 | Golden-model cross-checks | 3 independent layers: SVA / SV scoreboard / Python post-sim recompute |
-| Injected-bug hunt | **5/5 caught** — SVA first on 3 (protocol/state), scoreboard first on 2 (value-domain), each within the first tiles ([bug_log.md](docs/bug_log.md)) |
-| Verification plan | 9 features → 2 SV covergroups (+25 Python bins) → 11 assertions ([verification_plan.md](docs/verification_plan.md)) |
+| Injected-bug hunt | **8/8 caught** by SVA (BUG1–5 + BUG6–8 added to prove the rewritten assertions); scoreboard also catches 7/8 — BUG8 is functionally masked ([bug_log.md](docs/bug_log.md)) |
+| Verification plan | 9 features → 2 SV covergroups (+25 Python bins) → 12 assertions ([verification_plan.md](docs/verification_plan.md)) |
 | Known gaps | Documented, not hidden — see [verification_plan.md §7](docs/verification_plan.md). An audit of this environment found assertion A8 passing **vacuously**; the driver was reworked so the stall it checks actually occurs, and the monitor now fails the test if it doesn't. |
 
 ### Architecture
